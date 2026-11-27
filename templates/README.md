@@ -12,12 +12,17 @@ Classic is built into Inky; no download is needed. Other authors can distribute
 templates as ZIP files. Extract the ZIP and locate the folder containing
 `index.html` and the template's assets.
 
-1. **File → Web template: … → Open template library** opens the `templates`
-   directory inside your per-user application data. Copy downloaded templates into
-   separate subfolders. Returning to Inky refreshes the list automatically.
-2. Select a library entry, or use **Choose template folder…** to select a template
-   from any accessible location. The File menu shows the selected name. Location
-   suffixes distinguish generic or duplicate folder names.
+1. Open **File → Web templates…**. Choose Classic, an imported template, or
+   **Use external folder…** to reference a template in any accessible location.
+   The chooser shows the selected folder's full location.
+2. **Import folder…** copies an extracted template into your per-user library.
+   Existing names are kept: another copy receives a numbered suffix. Imports
+   remain in the library even if you cancel the chooser. **Open library folder**
+   lets you edit or remove those copies. External folders are used in place;
+   their source edits remain available without importing again.
+   Click **Use template** to apply the highlighted choice to this project, or
+   **Cancel** to leave its selection unchanged. A missing folder remains visible;
+   use **Use external folder…** to locate it or choose another template.
 3. Choose **File → Export for web…** and select a dedicated output folder, creating
    one in the native folder picker if needed. For a new export, the picker
    starts in your project folder: create and select a `web` subfolder. Do not

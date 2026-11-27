@@ -148,6 +148,29 @@
         </div>
       </div>
 
+      <dialog id="web-template-chooser" aria-labelledby="web-template-title" aria-describedby="web-template-description">
+        <form>
+          <h2 id="web-template-title" class="i18n">Web templates</h2>
+          <p id="web-template-description" class="i18n">Choose the player used for this project's web exports.</p>
+          <fieldset>
+            <label for="web-template-list" class="i18n">Available templates</label>
+            <select id="web-template-list" size="6" autofocus></select>
+            <p id="web-template-location"></p>
+            <div class="template-actions">
+              <button type="button" class="btn btn-default i18n" data-action="import">Import folder...</button>
+              <button type="button" class="btn btn-default i18n" data-action="external">Use external folder...</button>
+              <button type="button" class="btn btn-default i18n" data-action="library">Open library folder</button>
+            </div>
+            <p class="template-help i18n">Import copies a template into your library. External folders are used in place. Extract downloaded ZIP files first.</p>
+            <p id="web-template-error" role="alert"></p>
+            <div class="template-footer">
+              <button type="button" class="btn btn-default i18n" data-action="cancel">Cancel</button>
+              <button type="submit" class="btn btn-primary i18n">Use template</button>
+            </div>
+          </fieldset>
+        </form>
+      </dialog>
+
     </div><!-- photon window -->
 
   </body>

@@ -93,4 +93,29 @@ async function copyDirectory(source, destination, generatedFiles = []) {
     await copy();
 }
 
-module.exports = { validateDirectory, listDirectories, copyDirectory, rejectDestinationSymlink, contains };
+// Publish index.html last so an incomplete import never appears in the library.
+async function importDirectory(source, library) {
+    const name = path.basename(path.resolve(source));
+    source = await validateDirectory(source);
+    await fs.promises.mkdir(library, { recursive: true });
+    let destination;
+    for( let suffix = 1; ; suffix++ ) {
+        destination = path.join(library, name + (suffix > 1 ? ` (${suffix})` : ''));
+        try {
+            await fs.promises.mkdir(destination);
+            break;
+        } catch(error) {
+            if( error.code != 'EEXIST' ) throw error;
+        }
+    }
+    try {
+        await copyDirectory(source, destination);
+        await fs.promises.copyFile(path.join(source, 'index.html'), path.join(destination, 'index.html'));
+        return destination;
+    } catch(error) {
+        await fs.promises.rm(destination, { recursive: true, force: true });
+        throw error;
+    }
+}
+
+module.exports = { validateDirectory, listDirectories, copyDirectory, importDirectory, rejectDestinationSymlink, contains };
