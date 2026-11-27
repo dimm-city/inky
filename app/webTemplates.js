@@ -51,6 +51,7 @@ async function copyDirectory(source, destination, generatedFiles = []) {
         }
     };
     checkDestination(path.resolve(destination));
+    await rejectDestinationSymlink(path.resolve(destination));
     await fs.promises.mkdir(destination, { recursive: true });
     checkDestination(await fs.promises.realpath(destination));
 

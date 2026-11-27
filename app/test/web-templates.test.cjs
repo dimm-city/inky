@@ -113,3 +113,30 @@ test('rejects generated output symlinks before copying or changing linked files'
         await assert.rejects(fs.stat(path.join(output, 'asset.css')), { code: 'ENOENT' });
     }
 });
+
+test('rejects a symlink used as the export root before copying or creating its target', async t => {
+    const root = await fixture(t), source = path.join(root, 'source');
+    await fs.mkdir(source);
+    await fs.writeFile(path.join(source, 'player.js'), 'template player');
+    for( const exists of [true, false] ) {
+        const outside = path.join(root, exists ? 'outside' : 'missing');
+        const output = path.join(root, exists ? 'linked-output' : 'dangling-output');
+        if( exists ) {
+            await fs.mkdir(outside);
+            await fs.writeFile(path.join(outside, 'player.js'), 'DO NOT OVERWRITE');
+        }
+        try {
+            await fs.symlink(outside, output, 'junction');
+        } catch(error) {
+            if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+            throw error;
+        }
+        await assert.rejects(copyDirectory(source, output), /Export destination symlinks/);
+        assert.equal((await fs.lstat(output)).isSymbolicLink(), true);
+        if( exists ) {
+            assert.equal(await fs.readFile(path.join(outside, 'player.js'), 'utf8'), 'DO NOT OVERWRITE');
+        } else {
+            await assert.rejects(fs.stat(outside), { code: 'ENOENT' });
+        }
+    }
+});
