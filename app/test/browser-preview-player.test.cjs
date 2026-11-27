@@ -1,4 +1,4 @@
-const { test } = require('node:test');
+const { it: test, afterEach } = require('mocha');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -23,10 +23,12 @@ The lamp is blue. Coins: {coins}.
     -> END
 `;
 const compile = source => JSON.parse(new Compiler(source).Compile().ToJson());
-function player(t, preview = true) {
+const windows = [];
+afterEach(() => { for (const window of windows.splice(0)) window.close(); });
+function player(preview = true) {
     const html = fs.readFileSync(path.join(__dirname, '../../templates/classic/index.html'), 'utf8');
     const dom = new JSDOM(html, { runScripts: 'outside-only', url: 'http://127.0.0.1/fixture/' });
-    t.after(() => dom.window.close());
+    windows.push(dom.window);
     const window = dom.window;
     window.matchMedia = () => ({ matches: false }); // Read immediately with reduced motion.
     window.inkjs = runtime;
@@ -39,15 +41,15 @@ function player(t, preview = true) {
     return { window, text, choices, update: source => update(compile(source)) };
 }
 
-test('Classic still plays normally when no preview client is present', t => {
-    const game = player(t, false);
+test('Classic still plays normally when no preview client is present', function() {
+    const game = player(false);
     game.choices()[0].click();
     assert.match(game.text(), /The lamp is blue. Coins: 7/);
     assert.equal(game.window.inkyPreview, undefined);
 });
 
-test('Classic hot updates regenerate prose and choices while preserving variables and consumed choices', async t => {
-    const game = player(t);
+test('Classic hot updates regenerate prose and choices while preserving variables and consumed choices', async function() {
+    const game = player();
     game.choices()[0].click();
     const updated = original.replace('lamp is blue', 'lamp is green').replace('[Check balance]', '[Count coins]');
     await game.update(updated);
@@ -62,8 +64,8 @@ test('Classic hot updates regenerate prose and choices while preserving variable
     assert.equal(game.window.localStorage.getItem('save-state'), null);
 });
 
-test('an incompatible update keeps the existing game and its working controls', async t => {
-    const game = player(t);
+test('an incompatible update keeps the existing game and its working controls', async function() {
+    const game = player();
     game.choices()[0].click();
     game.choices()[0].click(); // Checkpoint now points inside the knot being renamed.
     const before = game.text();

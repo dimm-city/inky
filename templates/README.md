@@ -66,6 +66,10 @@ the beginning. Progress retention is best effort, not a save-migration guarantee
 A compile error also keeps the last successful game; fix the source and save
 again. Preview does not overwrite the player's browser saves.
 
+Healthy status notices disappear after a few seconds. **Hide** dismisses a notice
+without changing the game; **Restart preview** is shown only when an update
+cannot preserve progress, and starts the updated story from the beginning.
+
 Other templates reload normally unless their player implements the optional
 update hook below; their own startup behavior determines progress after reload.
 A template's Content Security Policy must allow its same-origin preview script
@@ -174,7 +178,7 @@ template sources. JSON export and the native testing pane are unchanged.
 copy this `templates` directory into their resources folder; development builds
 read it directly from the repository.
 
-Run the filesystem, project-settings and workflow tests with the existing Mocha
+Run the filesystem, project-settings, preview and player tests with the existing Mocha
 runner (Node.js 20 or newer):
 
 ```sh

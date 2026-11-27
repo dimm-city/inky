@@ -5,21 +5,41 @@
     const base = new URL('.', script.src);
     let attempted = Number(script.dataset.revision);
     const templateRevision = Number(script.dataset.templateRevision);
-    let wanted = attempted, handler, updating = false, notice;
+    let wanted = attempted, handler, updating = false, host, notice, restart, hideTimer;
+    let status = { message: 'Live preview · Updates reload this template', state: 'ready' };
     const source = new EventSource(new URL('events', base));
-    const show = message => {
-        if( notice ) notice.textContent = message;
-    };
-    window.inkyPreview = { accept(callback) { handler = callback; } };
+    function renderStatus(value) {
+        if( !notice ) return;
+        clearTimeout(hideTimer);
+        notice.textContent = value.message;
+        restart.hidden = value.state !== 'restart';
+        host.hidden = false;
+        // Healthy updates should not cover the game's own reading controls.
+        if( value.state === 'ready' ) hideTimer = setTimeout(() => { host.hidden = true; }, 3000);
+    }
+    function show(message, state = 'ready') {
+        status = { message, state };
+        renderStatus(status);
+    }
+    window.inkyPreview = { accept(callback) {
+        handler = callback;
+        if( status.state === 'ready' ) show('Live preview · Ready');
+    } };
     document.addEventListener('DOMContentLoaded', () => {
-        const host = document.createElement('aside');
+        host = document.createElement('aside');
         host.id = 'inky-browser-preview';
+        host.setAttribute('aria-label', 'Inky live browser preview');
         const shadow = host.attachShadow({ mode: 'open' });
-        shadow.innerHTML = '<style>:host{position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:min(440px,calc(100vw - 24px));font:14px/1.4 system-ui,sans-serif;color:#fff}div{background:#18212f;border:1px solid #8192a8;border-radius:6px;padding:10px;box-shadow:0 2px 12px #0006}button{font:inherit;padding:8px;margin-left:8px;cursor:pointer}</style><div><span role="status"></span><button type="button">Restart preview</button></div>';
+        shadow.innerHTML = '<style>:host{position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:min(440px,calc(100vw - 24px));font:14px/1.4 system-ui,sans-serif;color:#fff}:host([hidden]){display:none}div{display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:#18212f;border:1px solid #8192a8;border-radius:6px;padding:10px;box-shadow:0 2px 12px #0006;max-height:50vh;overflow:auto}span{flex:1;min-width:120px;overflow-wrap:anywhere}button{font:inherit;min-height:36px;padding:6px 10px;cursor:pointer}button[hidden]{display:none}button:focus-visible{outline:2px solid #8bded5;outline-offset:2px}</style><div><span role="status"></span><button type="button" data-action="restart" hidden>Restart preview</button><button type="button" data-action="hide" aria-label="Hide preview status">Hide</button></div>';
         notice = shadow.querySelector('span');
-        shadow.querySelector('button').addEventListener('click', () => location.reload());
+        restart = shadow.querySelector('[data-action="restart"]');
+        restart.addEventListener('click', () => location.reload());
+        shadow.querySelector('[data-action="hide"]').addEventListener('click', () => {
+            clearTimeout(hideTimer);
+            host.hidden = true;
+        });
         document.body.appendChild(host);
-        show(handler ? 'Live preview · Ready' : 'Live preview · Updates reload this template');
+        renderStatus(status);
     });
     async function update() {
         if( updating ) return;
@@ -36,21 +56,22 @@
                     await handler(next.content);
                     show('Live preview · Updated');
                 } catch(error) {
-                    show('Progress could not be restored. Restart preview to apply the update. ' + error.message);
+                    show('Your current game is unchanged. Restart preview to play the updated story from the beginning. ' + error.message, 'restart');
                 }
             }
         } catch(error) {
-            show('Preview disconnected: ' + error.message);
+            show('Could not update preview. Your current game is unchanged. Save again to retry. ' + error.message, 'error');
         } finally { updating = false; }
     }
     source.onmessage = event => {
         const message = JSON.parse(event.data);
-        if( message.stopped ) { source.close(); show('Live preview stopped'); return; }
-        if( message.error ) { show('Showing the last successful build. ' + message.error); return; }
+        if( message.stopped ) { source.close(); show('Live preview stopped', 'error'); return; }
+        if( message.error ) { show('Showing the last successful build. Fix the Ink errors and save again. ' + message.error, 'error'); return; }
         if( message.templateRevision !== templateRevision && message.revision ) { location.reload(); return; }
         wanted = Math.max(wanted, message.revision);
         void update();
     };
-    source.onerror = () => show('Preview disconnected · Waiting for Inky');
-    window.addEventListener('pagehide', () => source.close());
+    source.onopen = () => renderStatus(status);
+    source.onerror = () => renderStatus({ message: 'Preview disconnected · Waiting for Inky', state: 'error' });
+    window.addEventListener('pagehide', () => { clearTimeout(hideTimer); source.close(); });
 })();

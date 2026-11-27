@@ -1,14 +1,18 @@
-const { test } = require('node:test');
+const { it: test, afterEach } = require('mocha');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const http = require('node:http');
 const { BrowserPreview } = require('../main-process/browserPreview.js');
 
-async function fixture(t) {
+const previews = [];
+afterEach(async () => {
+    for (const preview of previews.splice(0)) await preview.close();
+});
+async function fixture() {
     const preview = new BrowserPreview();
     await preview.ready;
-    t.after(() => preview.close());
+    previews.push(preview);
     return preview;
 }
 async function build(preview, revision, text = 'A story') {
@@ -29,8 +33,8 @@ function request(url, headers = {}, method = 'GET') {
     });
 }
 
-test('serves completed exports on loopback and injects the client only into the response', async t => {
-    const preview = await fixture(t);
+test('serves completed exports on loopback and injects the client only into the response', async function() {
+    const preview = await fixture();
     assert.equal(preview.server.address().address, '127.0.0.1');
     assert.equal((await request(preview.url)).code, 503);
     const directory = await build(preview, 1);
@@ -48,23 +52,31 @@ test('serves completed exports on loopback and injects the client only into the 
     assert.equal(Number(head.headers['content-length']), page.body.length);
 });
 
-test('rejects other hosts, origins, sessions, traversal, methods and symlink escapes', async t => {
-    const preview = await fixture(t);
+test('rejects other hosts, origins, sessions, traversal, methods and symlink escapes', async function() {
+    const preview = await fixture();
     const directory = await build(preview, 1);
     await fs.writeFile(path.join(preview.root, 'private.txt'), 'Do not serve');
-    await fs.symlink(path.join(preview.root, 'private.txt'), path.join(directory, 'link.txt'));
     await preview.publish(1, {}, null);
     assert.equal((await request(preview.url, { Host: 'attacker.example' })).code, 403);
     assert.equal((await request(preview.url, { Origin: 'https://attacker.example' })).code, 403);
     assert.equal((await request('http://' + preview.host + '/other-session/')).code, 403);
     assert.equal((await request(preview.url + '%2f..%2fprivate.txt')).code, 403);
-    assert.equal((await request(preview.url + 'link.txt')).code, 403);
     assert.equal((await request(preview.url, {}, 'POST')).code, 405);
     assert.equal((await request(preview.url + 'missing.txt')).code, 404);
 });
 
-test('keeps the previous revision after failed publication and ignores old builds', async t => {
-    const preview = await fixture(t);
+test('rejects file symlinks outside the active preview export', async function() {
+    const preview = await fixture();
+    const directory = await build(preview, 1);
+    await fs.writeFile(path.join(preview.root, 'private.txt'), 'Do not serve');
+    try { await fs.symlink(path.join(preview.root, 'private.txt'), path.join(directory, 'link.txt')); }
+    catch(error) { if( error.code === 'EPERM' ) this.skip(); throw error; }
+    await preview.publish(1, {}, null);
+    assert.equal((await request(preview.url + 'link.txt')).code, 403);
+});
+
+test('keeps the previous revision after failed publication and ignores old builds', async function() {
+    const preview = await fixture();
     await build(preview, 1);
     await preview.publish(1, { text: 'first' }, null);
     await assert.rejects(preview.publish(2, {}, null));
@@ -84,8 +96,8 @@ test('keeps the previous revision after failed publication and ignores old build
     await assert.rejects(fs.stat(path.join(preview.root, '1')), { code: 'ENOENT' });
 });
 
-test('streams media byte ranges with correct types and rejects invalid ranges', async t => {
-    const preview = await fixture(t);
+test('streams media byte ranges with correct types and rejects invalid ranges', async function() {
+    const preview = await fixture();
     const directory = await build(preview, 1);
     await fs.writeFile(path.join(directory, 'voice.wav'), Buffer.from([0, 1, 2, 3, 4, 5]));
     await preview.publish(1, {}, null);
@@ -98,8 +110,8 @@ test('streams media byte ranges with correct types and rejects invalid ranges', 
     assert.equal((await request(preview.url + 'voice.wav', { Range: 'bytes=-' })).code, 416);
 });
 
-test('SSE reconnects receive the latest revision and shutdown removes the export', async t => {
-    const preview = await fixture(t);
+test('SSE reconnects receive the latest revision and shutdown removes the export', async function() {
+    const preview = await fixture();
     await build(preview, 1);
     await preview.publish(1, {}, null);
     const response = await fetch(preview.url + '__inky/events');
