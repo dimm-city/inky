@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
-const { validateDirectory, listDirectories, copyDirectory } = require('../webTemplates.js');
+const { validateDirectory, listDirectories, copyDirectory, importDirectory } = require('../webTemplates.js');
 
 const roots = [];
 afterEach(async () => {
@@ -143,4 +143,33 @@ test('rejects a symlink used as the export root before copying or creating its t
             await assert.rejects(fs.stat(outside), { code: 'ENOENT' });
         }
     }
+});
+
+test('imports complete templates, keeps duplicate names and leaves the source editable', async function() {
+    const root = await fixture(), source = path.join(root, 'My player'), library = path.join(root, 'library');
+    await fs.mkdir(path.join(source, 'assets'), { recursive: true });
+    await fs.writeFile(path.join(source, 'index.html'), '<title>##STORY TITLE##</title>');
+    await fs.writeFile(path.join(source, 'assets/art.png'), Buffer.from([0, 255, 128]));
+    const first = await importDirectory(source, library);
+    const second = await importDirectory(source, library);
+    assert.equal(path.basename(first), 'My player');
+    assert.equal(path.basename(second), 'My player (2)');
+    assert.deepEqual(listDirectories(library), [first, second].sort());
+    assert.equal(await fs.readFile(path.join(second, 'index.html'), 'utf8'), '<title>##STORY TITLE##</title>');
+    assert.deepEqual(await fs.readFile(path.join(second, 'assets/art.png')), Buffer.from([0, 255, 128]));
+    await fs.writeFile(path.join(source, 'index.html'), 'source edit');
+    assert.equal(await fs.readFile(path.join(first, 'index.html'), 'utf8'), '<title>##STORY TITLE##</title>');
+});
+
+test('failed imports remove their partial copy and preserve existing library entries', async function() {
+    const root = await fixture(), library = path.join(root, 'library');
+    await fs.mkdir(path.join(library, 'Good'), { recursive: true });
+    await fs.writeFile(path.join(library, 'Good/index.html'), 'keep');
+    const invalid = path.join(root, 'invalid'); await fs.mkdir(invalid);
+    await assert.rejects(importDirectory(invalid, library), /template folder containing index.html/);
+    // Importing a library's ancestor would recursively copy into its own source.
+    await fs.writeFile(path.join(root, 'index.html'), 'template containing the library');
+    await assert.rejects(importDirectory(root, library), /separate folder/);
+    assert.deepEqual(await fs.readdir(library), ['Good']);
+    assert.equal(await fs.readFile(path.join(library, 'Good/index.html'), 'utf8'), 'keep');
 });

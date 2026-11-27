@@ -8,9 +8,6 @@ const Menu = electron.Menu;
 const ProjectWindow = require("./projectWindow.js").ProjectWindow;
 const inkSnippets = require("./inkSnippets.js").snippets;
 const i18n = require('./i18n/i18n.js');
-const path = require('path');
-const fs = require('fs');
-const { listDirectories } = require('../webTemplates.js');
 
 let recentFiles = [];
 let customInkSnippets = [];
@@ -25,55 +22,6 @@ let callbacks = {
 
 function refresh() {
     const projectWindow = ProjectWindow.focused();
-    const selectedTemplate = projectWindow ? projectWindow.webExport.template : null;
-    let templateDirectories = [];
-    let templateReadError = null;
-    try {
-        templateDirectories = listDirectories(ProjectWindow.templatesDirectory());
-    } catch(error) {
-        templateReadError = error.message;
-    }
-    if( selectedTemplate && !templateDirectories.includes(selectedTemplate) ) {
-        templateDirectories.push(selectedTemplate);
-    }
-    const templateLabel = directory => {
-        let label = path.basename(directory);
-        if( label.toLowerCase() == 'template' || templateDirectories.filter(other => path.basename(other) == label).length > 1 ) {
-            const location = value => path.dirname(value).split(path.sep).filter(Boolean).slice(-2).join(path.sep);
-            const ambiguous = templateDirectories.some(other => other != directory && path.basename(other) == path.basename(directory) && location(other) == location(directory));
-            label += ' — ' + (ambiguous ? path.dirname(directory) : '…' + path.sep + location(directory));
-        }
-        try {
-            if( !fs.statSync(path.join(directory, 'index.html')).isFile() ) label += ' (' + i18n._('unavailable') + ')';
-        } catch(error) {
-            label += ' (' + i18n._(error.code == 'ENOENT' ? 'missing' : 'unavailable') + ')';
-        }
-        return label;
-    };
-    const currentTemplateLabel = selectedTemplate ? templateLabel(selectedTemplate) : i18n._('Classic (built-in)');
-    const webTemplates = [
-        {
-            label: i18n._('Classic (built-in)'),
-            type: 'radio',
-            checked: !selectedTemplate,
-            click: () => callbacks.selectWebTemplate(null)
-        },
-        ...templateDirectories.map(directory => ({
-            label: templateLabel(directory),
-            type: 'radio',
-            checked: directory === selectedTemplate,
-            click: () => callbacks.selectWebTemplate(directory)
-        }))
-    ];
-    if( templateReadError ) {
-        webTemplates.push({ label: `${i18n._('Could not read templates:')} ${templateReadError}`, enabled: false });
-    }
-    webTemplates.push(
-        { type: 'separator' },
-        { label: i18n._('Choose template folder...'), click: callbacks.chooseWebTemplate },
-        { label: i18n._('Open template library'), click: callbacks.openTemplatesFolder }
-    );
-    
     let themes = [];
 
     // Create the themes menu, with the correct current theme ticked
@@ -260,10 +208,10 @@ function refresh() {
                     type: 'separator'
                 },
                 {
-                    label: i18n._('Web template:') + ' ' + currentTemplateLabel,
+                    label: i18n._('Web templates...'),
                     id: 'web-template',
                     enabled: callbacks.isFocusedWindow,
-                    submenu: webTemplates
+                    click: callbacks.chooseWebTemplate
                 },
                 {
                     label: i18n._('Live browser preview'),

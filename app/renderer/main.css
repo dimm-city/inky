@@ -928,3 +928,40 @@ img.issue-icon.warning {
 .sidebar .nav-wrapper::-webkit-scrollbar-thumb {
   background: #DDDDDD;
 }
+
+/* Keep template selection in the editor's existing window and theme. */
+#web-template-chooser {
+  width: 520px;
+  max-width: calc(100vw - 32px);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  padding: 20px;
+  border: 1px solid #888;
+  border-radius: 6px;
+  color: #333;
+  background: white;
+  color-scheme: light;
+}
+#web-template-chooser::backdrop { background: #0006; }
+#web-template-chooser h2 { margin: 0; font-size: 20px; }
+#web-template-chooser fieldset { min-width: 0; padding: 0; margin: 0; border: 0; }
+#web-template-list {
+  width: 100%;
+  margin-top: 6px;
+  padding: 4px;
+  font: inherit;
+  color: inherit;
+  background: inherit;
+  border: 1px solid #888;
+}
+#web-template-list option { padding: 6px; }
+#web-template-location { min-height: 2.8em; overflow-wrap: anywhere; user-select: text; }
+#web-template-chooser .template-actions,
+#web-template-chooser .template-footer { display: flex; flex-wrap: wrap; gap: 8px; }
+#web-template-chooser .template-footer { justify-content: flex-end; }
+#web-template-chooser .template-help { font-size: 12px; }
+#web-template-error { color: #b22424; overflow-wrap: anywhere; }
+.window:is(.dark, .contrast, .focus) #web-template-chooser { color-scheme: dark; color: #eee; background: #282828; }
+.window:is(.dark, .contrast, .focus) #web-template-error { color: #ffaaaa; }
+#web-template-chooser :focus-visible { outline: 2px solid #388df8; outline-offset: 2px; }
+#web-template-chooser button:disabled { opacity: .5; }

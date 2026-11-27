@@ -1,4 +1,4 @@
-const {app, BrowserWindow, ipcMain, dialog, ipcRenderer, Menu, shell} = require('electron')
+const {app, BrowserWindow, ipcMain, dialog, ipcRenderer, Menu} = require('electron')
 const i18n = require("./i18n/i18n.js")
 const {ProjectWindow} = require("./projectWindow.js");
 const {DocumentationWindow} = require("./documentationWindow.js");
@@ -7,7 +7,6 @@ const {AppMenus} = require('./appmenus.js');
 const {onForceQuit} = require('./forceQuitDetect');
 const {Inklecate} = require("./inklecate.js");
 const { fstat } = require('original-fs');
-const fs = require("fs");
 
 
 function inkJSNeedsUpdating() {
@@ -20,6 +19,13 @@ function inkJSNeedsUpdating() {
     // });
     // return true;
 }
+
+ipcMain.handle('select-web-template', async (event, directory) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    if( !win ) return;
+    await win.selectWebTemplate(directory);
+    AppMenus.refresh();
+});
 
 // main
 let pendingPathToOpen = null;
@@ -151,43 +157,12 @@ app.on('ready', function () {
             var win = ProjectWindow.focused();
             if (win) win.exportJson();
         },
-        selectWebTemplate: async (directory) => {
+        chooseWebTemplate: () => {
             const win = ProjectWindow.focused();
-            if( !win ) return;
-            try {
-                await win.selectWebTemplate(directory);
-                AppMenus.refresh();
-            } catch(error) {
-                dialog.showErrorBox(i18n._('Template Error'), error.message);
-                AppMenus.refresh();
-            }
-        },
-        chooseWebTemplate: async () => {
-            const win = ProjectWindow.focused();
-            if( !win ) return;
-            try {
-                const result = await dialog.showOpenDialog(win.browserWindow, {
-                    title: i18n._('Choose web template folder'),
-                    defaultPath: win.webExport.template || ProjectWindow.templatesDirectory(),
-                    properties: ['openDirectory']
-                });
-                if( result.canceled ) return;
-                await win.selectWebTemplate(result.filePaths[0]);
-                AppMenus.refresh();
-            } catch(error) {
-                dialog.showErrorBox(i18n._('Template Error'), error.message);
-                AppMenus.refresh();
-            }
-        },
-        openTemplatesFolder: async () => {
-            try {
-                const directory = ProjectWindow.templatesDirectory();
-                await fs.promises.mkdir(directory, { recursive: true });
-                const error = await shell.openPath(directory);
-                if( error ) throw new Error(error);
-            } catch(error) {
-                dialog.showErrorBox(i18n._('Template Error'), error.message);
-            }
+            if( win ) win.browserWindow.webContents.send('choose-web-template', {
+                library: ProjectWindow.templatesDirectory(),
+                selected: win.webExport.template || null
+            });
         },
         exportForWeb: () => {
             if( inkJSNeedsUpdating() ) return;
