@@ -4,23 +4,41 @@ Templates are standalone directories, separate from Inky's core application.
 
 | Template | Description |
 | --- | --- |
+| [Classic](classic/) | The original web player, used automatically when Default is selected. |
 | [Dimm City](dimm-city/README.md) | Illustrated dark reader with dialogue, choices, transcript, rewind and save/load. |
 
 ## Download and use
 
-Download this repository as a ZIP from its Code menu, extract it, and use the
-individual folder under `templates/`, not the entire repository. You can also
-download a template from another author or create your own.
+Download a template from its author or choose one from the catalog above.
+To use a template from this repository, download the repository ZIP from its
+Code menu, extract it, and use an individual folder under `templates/`, not the
+entire repository. The template folder must contain `index.html` and its assets.
 
-Open **File → Web template → Open templates folder** in Inky and copy a template
-folder into that global library. Select **Refresh templates**, then select its
-folder name in the Web template menu. Alternatively, **Choose template folder…**
-can select the extracted folder directly from any accessible location.
+1. **File → Web template → Open templates folder** opens Inky's global template
+   library: the `templates` directory inside your per-user application data.
+   Copy each downloaded template into its own subfolder there. Select **Refresh
+   templates**, or return to the Inky window, to refresh the menu.
+2. Select an installed folder under **File → Web template**, or use **Choose
+   template folder…** to select a template from any other accessible location.
+3. Choose **File → Export for web…**, then open the exported `index.html` in your
+   browser.
 
-Choose **Export for web…** to build your story, then open its `index.html` in a
-browser. **Default** clears the selection and restores the built-in template.
-An unavailable or invalid selected directory reports an error; it does not
-silently switch designs. Installing a template does not run installation scripts.
+**Default** clears the selection and uses the built-in Classic template.
+Selection applies to the current window; new windows start with Default. An
+unavailable or invalid selected directory reports an error without silently
+switching designs. The native play-as-you-write pane keeps its existing
+presentation.
+
+Template files are copied into the export, not executed by Inky. Installing a
+template does not run installation scripts. Keep sources in a dedicated folder
+separate from output. Full exports overwrite template files but preserve unrelated
+destination files. Edit source HTML/CSS and export again after template changes;
+keep manual edits to generated files separately. Browser saves depend on the
+player and file location.
+
+**Export story.js only…** updates story content without replacing the design.
+Select the same template and target its existing exported story script. Re-export
+the full folder when layout or assets change.
 
 ## Create a template
 
@@ -52,5 +70,11 @@ Use local browser-compatible script/resource references for offline play; no
 server is started by Inky. Export to a separate folder and keep edits in the
 template sources. JSON export and the native testing pane are unchanged.
 
-Content-only updates can use **Export story.js only…**, targeting the existing
-exported story script. Re-export the full web folder when assets or layout change.
+## Development
+
+`templates/classic` is the single source of the default player. Packaged apps
+copy this `templates` directory into their resources folder; development builds
+read it directly from the repository.
+
+With Node.js 20 or newer, run `node app/test/web-templates.test.cjs` from the
+repository root for the template filesystem checks.

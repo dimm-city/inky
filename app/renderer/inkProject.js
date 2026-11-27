@@ -510,7 +510,7 @@ InkProject.prototype.convertJSONToJS = async function(jsonFilePath, targetJSPath
 InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory, templateDirectory = null) {
     const templateDir = templateDirectory
         ? await WebTemplates.validateDirectory(templateDirectory)
-        : path.join(__dirname, "../export-for-web-template");
+        : path.join(__dirname, "../../templates/classic");
     const jsFilename = templateDirectory ? "story.js" : this.jsFilename();
 
     var storyTitle = path.basename(targetDirectory);

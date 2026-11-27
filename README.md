@@ -19,29 +19,9 @@
 
 ## Web templates
 
-Download a template from its author or the [available templates catalog](./templates/README.md).
-Extract it so the template folder contains `index.html` and its assets.
-
-- **File → Web template → Open templates folder** opens Inky's global template
-  library (the `templates` directory inside your per-user application data).
-  Copy each downloaded template into its own subfolder there, then select
-  **Refresh templates** or return to the Inky window to refresh the menu.
-- Select an installed folder under **File → Web template**, or use **Choose
-  template folder…** to select a template from any other accessible location.
-- Choose **File → Export for web…**, then open the exported `index.html` in your
-  browser. With **Default** selected, or no directory selected, Inky uses its
-  original built-in web template. Selection applies to the current window;
-  new windows start with Default.
-
-Template files are copied into the export, not executed by Inky. Keep template
-sources in a dedicated folder separate from output; full exports overwrite their
-files but preserve unrelated destination files. Edit source HTML/CSS and export
-again after template changes. **Export story.js only…** updates story content
-without replacing a template's design; select the same template and existing
-exported story script. Browser saves depend on the player and file location.
-The native play-as-you-write pane keeps its existing presentation.
-
-To create a template, see the [template format and catalog](./templates/README.md).
+Customize web exports with downloadable HTML/CSS templates. See the
+[template catalog and guide](./templates/README.md) for available templates,
+installation, usage and authoring instructions.
 
 ## Project status
 
@@ -130,9 +110,6 @@ To build the project:
 * Clone the repo
 * On Mac, double-click the `INSTALL_AND_RUN.command` script. On Windows, open Powershell, cd into the app directory, and type `npm install`, then `npm start`.
 * For subsequent runs, if no npm packages have changed, you can run the `RUN.command` script on Mac, or type `npm start` in the shell (on Windows).
-
-For the template filesystem checks, use Node.js 20 or newer and run
-`node test/web-templates.test.cjs` from the `app` directory.
 
 ### Linux
 
