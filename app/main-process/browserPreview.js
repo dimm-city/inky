@@ -10,7 +10,7 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; ch
 // One project window owns this server and every file it serves.
 class BrowserPreview {
     constructor() {
-        this.root = fs.realpathSync(fs.mkdtempSync(path.join(os.tmpdir(), 'inky-preview-')));
+        this.root = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'inky-preview-')));
         this.prefix = '/' + randomUUID() + '/';
         this.clients = new Set();
         this.build = null;

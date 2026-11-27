@@ -42,7 +42,7 @@ test('serves completed exports on loopback and injects the client only into the 
     const directory = await build(preview, 1);
     await preview.publish(1, { inkVersion: 21 }, null);
     const page = await request(preview.url);
-    assert.equal(page.code, 200);
+    assert.equal(page.code, 200, `Preview response: ${page.body}; root: ${preview.root}; real directory: ${await fs.realpath(directory)}`);
     assert.match(page.body.toString(), /<head><script .*data-revision="1"/);
     assert.equal(page.headers['cache-control'], 'no-store');
     assert.doesNotMatch(await fs.readFile(path.join(directory, 'index.html'), 'utf8'), /__inky/);
