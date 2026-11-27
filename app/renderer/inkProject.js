@@ -62,6 +62,8 @@ InkProject.prototype.createInkFile = function(anyPath, isBrandNew, loadErrorCall
             this.refreshIncludes();
         },
 
+        diskLoaded: () => this.scheduleBrowserPreview(),
+
         // Called when InkFile finds an INCUDE line in the contents of the file
         includesChanged: () => {         
             this.refreshIncludes();
@@ -172,6 +174,7 @@ InkProject.prototype.refreshIncludes = function() {
     NavView.setFiles(this.mainInk, this.files);
     EditorView.setFiles(this.files);
     LiveCompiler.setEdited();
+    if( this.fileWatcher ) this.fileWatcher.add(this.files.map(file => file.absolutePath()).filter(Boolean));
 }
 
 InkProject.prototype.sortFileList = function() {
@@ -265,6 +268,11 @@ InkProject.prototype.startFileWatching = function() {
                     if( !err && this.activeInkFile == inkFile )
                         setImmediate(() => EditorView.restoreCursorPos());
                 });
+            } else if( this.browserPreview ) {
+                this.browserPreview.conflict = true;
+                this.browserPreview.revision++;
+                clearTimeout(this.browserPreview.timer);
+                ipcRenderer.send('browser-preview-error', this.browserPreview.root, i18n._('A source file changed on disk while it has unsaved edits in Inky. Save the project to resolve the conflict.'));
             }
         }
     });
@@ -279,6 +287,7 @@ InkProject.prototype.startFileWatching = function() {
             if( !inkFile.hasUnsavedChanges && inkFile != this.mainInk ) {
                 this.deleteInkFile(inkFile);
             }
+            this.scheduleBrowserPreview();
         }
     });
 
@@ -304,7 +313,7 @@ InkProject.prototype.showInkFile = function(inkFile) {
     }
 }
 
-InkProject.prototype.save = function() {
+InkProject.prototype.save = function(afterSaveCallback) {
 
     // Make saving atomic, don't save again if we're already saving
     if( this.saveActive ) return;
@@ -319,7 +328,7 @@ InkProject.prototype.save = function() {
 
     var singleFileSaveComplete = (file, success) => {
         allSuccess = allSuccess && success;
-        if( success ) this.unsavedFiles.remove(file);
+        if( success && !file.hasUnsavedChanges ) this.unsavedFiles.remove(file);
 
         filesRemaining--;
         if( filesRemaining == 0 ) {
@@ -329,6 +338,11 @@ InkProject.prototype.save = function() {
                 InkProject.events.didSave();
 
             this.saveActive = false;
+            if( allSuccess ) {
+                if( this.browserPreview ) this.browserPreview.conflict = false;
+                this.scheduleBrowserPreview();
+            }
+            if( afterSaveCallback ) afterSaveCallback(allSuccess);
         }
     }
 
@@ -349,6 +363,7 @@ InkProject.prototype.save = function() {
         // Cancel the save process because main ink file save failed
         else {
             this.saveActive = false;
+            if( filesRemaining > 0 && afterSaveCallback ) afterSaveCallback(false);
         }
     });
 }
@@ -445,7 +460,7 @@ InkProject.prototype.convertJSONToJS = async function(jsonFilePath, targetJSPath
     await fs.promises.writeFile(targetJSPath, `var storyContent = ${jsonContent};`, "utf8");
 }
 
-InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory, templateDirectory = null) {
+InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory, templateDirectory = null, metadata = null) {
     let templateDir = path.join(__dirname, "../../templates/classic");
     if( templateDirectory ) {
         try { templateDir = await WebTemplates.validateDirectory(templateDirectory); }
@@ -453,13 +468,14 @@ InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory,
             throw new Error(i18n._('The web template is unavailable. Choose its folder again or select Classic (built-in).') + '\n' + error.message);
         }
     }
-    const jsFilename = templateDirectory ? "story.js" : this.jsFilename();
+    const jsFilename = templateDirectory ? "story.js" : (metadata ? metadata.script : this.jsFilename());
 
     var storyTitle = path.basename(targetDirectory);
     var mainInkTagDict = this.mainInk.symbols.globalDictionaryStyleTags;
     if( mainInkTagDict && mainInkTagDict["title"] ) {
         storyTitle = mainInkTagDict["title"];
     }
+    if( metadata ) storyTitle = metadata.title;
     const html = (await fs.promises.readFile(path.join(templateDir, "index.html"), "utf8"))
         .replace(/##STORY TITLE##/g, () => storyTitle)
         .replace(/##JAVASCRIPT FILENAME##/g, () => jsFilename);
@@ -471,13 +487,72 @@ InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory,
     return jsFilename;
 }
 
+// Save-triggered exports use a private directory and never change publishing preferences.
+InkProject.prototype.scheduleBrowserPreview = function() {
+    const preview = this.browserPreview;
+    if( !preview ) return;
+    preview.revision++;
+    clearTimeout(preview.timer);
+    preview.timer = setTimeout(() => { if( !preview.running ) preview.task = this.buildBrowserPreview(preview); }, 120);
+}
+
+InkProject.prototype.buildBrowserPreview = async function(preview) {
+    if( this.browserPreview !== preview || preview.running || preview.conflict ) return;
+    if( !this.ready || this.files.some(file => file.isLoading) || this.saveActive ) {
+        preview.timer = setTimeout(() => { if( !preview.running ) preview.task = this.buildBrowserPreview(preview); }, 120);
+        return;
+    }
+    preview.running = true;
+    const revision = preview.revision, template = preview.template;
+    const directory = path.join(preview.root, String(revision));
+    let compiledPath, compileId;
+    try {
+        const mainPath = this.mainInk.absolutePath();
+        const files = this.files.map(file => file.absolutePath()).filter(Boolean);
+        let sourceRoot = path.dirname(mainPath);
+        for( const file of files ) while( !WebTemplates.contains(sourceRoot, file) ) sourceRoot = path.dirname(sourceRoot);
+        const updatedFiles = {};
+        for( const file of files ) {
+            try { updatedFiles[path.relative(sourceRoot, file)] = await fs.promises.readFile(file, 'utf8'); }
+            catch(error) { if( error.code !== 'ENOENT' ) throw error; }
+        }
+        const mainName = path.relative(sourceRoot, mainPath);
+        const script = this.jsFilename();
+        compiledPath = await new Promise((resolve, reject) => {
+            compileId = LiveCompiler.exportJson(true,
+                (error, file) => error ? reject(new Error(error)) : resolve(file), { mainName, updatedFiles, isolated: true });
+        });
+        if( this.browserPreview !== preview || revision !== preview.revision ) return;
+        const content = JSON.parse((await fs.promises.readFile(compiledPath, 'utf8')).replace(/^\uFEFF/, ''));
+        const tags = new (require('inkjs').Story)(content).globalTags || [];
+        const title = tags.find(tag => tag.startsWith('title:'));
+        await this.buildForWeb(compiledPath, directory, template,
+            { script, title: title ? title.slice(6).trim() : path.basename(mainName, '.ink') });
+        if( this.browserPreview !== preview || revision !== preview.revision ) return;
+        await ipcRenderer.invoke('browser-preview-publish', preview.root, revision, content, template);
+        preview.published = revision;
+    } catch(error) {
+        if( this.browserPreview === preview && revision === preview.revision )
+            ipcRenderer.send('browser-preview-error', preview.root, error.message);
+    } finally {
+        if( compileId ) ipcRenderer.send('release-export', compileId);
+        try {
+            if( preview.published !== revision ) await fs.promises.rm(directory, { recursive: true, force: true });
+        } catch(error) {
+            ipcRenderer.send('browser-preview-error', preview.root, error.message);
+        }
+        preview.running = false;
+        if( this.browserPreview === preview && revision !== preview.revision ) preview.task = this.buildBrowserPreview(preview);
+    }
+}
+
 InkProject.prototype.tryClose = function() {
     if( this.hasUnsavedChanges ) {
         ipcRenderer.invoke("try-close").then((responseObject) => {
             var response = responseObject.response;
             if( response == 0 ) {
-                this.save(false, () => {
-                    this.closeImmediate();
+                this.save(success => {
+                    if( success ) this.closeImmediate();
                 });
             }
             
@@ -682,6 +757,37 @@ ipcRenderer.on("project-export-for-web", (event, webExport) => {
 ipcRenderer.on("project-export-js-only", (event, webExport) => {
     if( InkProject.currentProject ) {
         InkProject.currentProject.exportJSOnly(webExport);
+    }
+});
+
+ipcRenderer.on('browser-preview-start', async (event, options) => {
+    const project = InkProject.currentProject;
+    if( !project ) return;
+    const preview = { ...options, revision: 0, running: false };
+    project.browserPreview = preview;
+    if( !project.mainInk.absolutePath() || project.hasUnsavedChanges ) {
+        project.save(success => {
+            if( !success ) ipcRenderer.send('browser-preview-cancel');
+        });
+    } else project.scheduleBrowserPreview();
+});
+
+ipcRenderer.on('browser-preview-stop', async (event, root) => {
+    const project = InkProject.currentProject;
+    const preview = project?.browserPreview;
+    if( preview && preview.root === root ) {
+        clearTimeout(preview.timer);
+        project.browserPreview = null;
+        await preview.task;
+    }
+    ipcRenderer.send('browser-preview-stopped', root);
+});
+
+ipcRenderer.on('browser-preview-template', (event, template) => {
+    const project = InkProject.currentProject;
+    if( project && project.browserPreview ) {
+        project.browserPreview.template = template || null;
+        project.scheduleBrowserPreview();
     }
 });
 

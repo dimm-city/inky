@@ -19,7 +19,8 @@
 
 ## Web templates
 
-Customize web exports with downloadable HTML/CSS templates. See the
+Customize web exports with downloadable HTML/CSS templates, and use live browser
+preview to update the game automatically when saving. See the
 [template catalog and guide](./templates/README.md) for available templates,
 installation, usage and authoring instructions.
 

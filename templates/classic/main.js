@@ -4,6 +4,8 @@
     var story = new inkjs.Story(storyContent);
 
     var savePoint = "";
+    var currentTurnStart = 0;
+    var previewUpdating = false;
 
     let savedTheme;
     let globalTagTheme;
@@ -45,10 +47,56 @@
     // Kick off the start of the story!
     continueStory(true);
 
+    // The optional preview bridge is absent in normal exports. Keep runtime and UI
+    // ownership here, rather than teaching Inky about this template's DOM.
+    if( window.inkyPreview ) window.inkyPreview.accept(async function(content) {
+        const checkpoint = savePoint, currentStory = story;
+        const next = new inkjs.Story(content);
+        next.onError = message => { throw new Error(message); };
+        next.state.LoadJson(checkpoint);
+        // Validate the new turn before touching the working game. Loading a menu's
+        // post-turn state would keep its old choices and never emit the new prose.
+        const deadline = performance.now() + 5000;
+        let lines = 0;
+        while( next.canContinue ) {
+            do {
+                next.ContinueAsync(16);
+                if( performance.now() > deadline || ++lines > 10000 ) throw new Error('Updated story did not reach a choice.');
+                if( !next.asyncContinueComplete ) await new Promise(resolve => setTimeout(resolve, 0));
+            } while( !next.asyncContinueComplete );
+        }
+        if( next.hasError || next.hasWarning ) throw new Error('The story location is no longer compatible.');
+        next.state.LoadJson(checkpoint);
+        if( savePoint !== checkpoint || story !== currentStory ) throw new Error('The game advanced during the update. Save again to retry.');
+        const previous = story, previousNodes = Array.from(storyContainer.childNodes);
+        const previousStart = currentTurnStart, previousSavePoint = savePoint;
+        const scroll = outerScrollContainer.scrollTop;
+        previewUpdating = true;
+        try {
+            story = next;
+            while( storyContainer.childNodes.length > previousStart ) storyContainer.lastChild.remove();
+            continueStory(true);
+            const title = (story.globalTags || []).find(tag => tag.startsWith('title:'));
+            if( title ) {
+                document.title = title.slice(6).trim();
+                const heading = storyContainer.querySelector('h1');
+                if( heading ) heading.textContent = document.title;
+            }
+        } catch(error) {
+            story = previous; savePoint = previousSavePoint; currentTurnStart = previousStart;
+            storyContainer.replaceChildren(...previousNodes);
+            throw error;
+        } finally {
+            previewUpdating = false;
+            outerScrollContainer.scrollTop = scroll;
+        }
+    });
+
     // Main story processing function. Each time this is called it generates
     // all the next content up as far as the next set of choices.
     function continueStory(firstTime) {
 
+        currentTurnStart = storyContainer.childNodes.length;
         var paragraphIndex = 0;
         var delay = 0.0;
 
@@ -73,7 +121,7 @@
 				splitTag.property = splitTag.property.toUpperCase();
 
                 // AUDIO: src
-                if( splitTag && splitTag.property == "AUDIO" ) {
+                if( !previewUpdating && splitTag && splitTag.property == "AUDIO" ) {
                   if('audio' in this) {
                     this.audio.pause();
                     this.audio.removeAttribute('src');
@@ -84,7 +132,7 @@
                 }
 
                 // AUDIOLOOP: src
-                else if( splitTag && splitTag.property == "AUDIOLOOP" ) {
+                else if( !previewUpdating && splitTag && splitTag.property == "AUDIOLOOP" ) {
                   if('audioLoop' in this) {
                     this.audioLoop.pause();
                     this.audioLoop.removeAttribute('src');
@@ -111,12 +159,12 @@
                 }
 
                 // LINK: url
-                else if( splitTag && splitTag.property == "LINK" ) {
+                else if( !previewUpdating && splitTag && splitTag.property == "LINK" ) {
                     window.location.href = splitTag.val;
                 }
 
                 // LINKOPEN: url
-                else if( splitTag && splitTag.property == "LINKOPEN" ) {
+                else if( !previewUpdating && splitTag && splitTag.property == "LINKOPEN" ) {
                     window.open(splitTag.val);
                 }
 
@@ -265,7 +313,7 @@
 
     // Fades in an element after a specified delay
     function showAfter(delay, el) {
-        if( isAnimationEnabled() ) {
+        if( !previewUpdating && isAnimationEnabled() ) {
             el.classList.add("hide");
             setTimeout(function() { el.classList.remove("hide") }, delay);
         } else {
@@ -278,7 +326,7 @@
     // see previously, so it doesn't go too far.
     function scrollDown(previousBottomEdge) {
         // If the user doesn't want animations, let them scroll manually
-        if ( !isAnimationEnabled() ) {
+        if ( previewUpdating || !isAnimationEnabled() ) {
             return;
         }
 

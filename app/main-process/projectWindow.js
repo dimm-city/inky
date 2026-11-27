@@ -10,6 +10,7 @@ const i18n = require("./i18n/i18n.js");
 const { validateDirectory } = require('../webTemplates.js');
 const ProjectSettings = require('../projectSettings.js');
 const { pathToFileURL } = require('url');
+const { BrowserPreview } = require('./browserPreview.js');
 
 var electronWindowOptions = {
   width: 1300,
@@ -63,6 +64,7 @@ function ProjectWindow(filePath) {
     this.mainInkAbsPath = filePath;
     this.settings = {};
     this.webExport = {};
+    this.browserPreview = null;
 
     // Existing project at specific path
     if( filePath ) {
@@ -92,6 +94,7 @@ function ProjectWindow(filePath) {
     })
 
     this.browserWindow.on("closed", () => {
+        this.stopBrowserPreview().catch(error => console.error('Preview cleanup failed:', error));
         var idx = windows.indexOf(this);
         if( idx != -1 )
             windows.splice(idx, 1);
@@ -142,6 +145,50 @@ ProjectWindow.prototype.persistWebExport = function() {
 ProjectWindow.prototype.selectWebTemplate = async function(directory) {
     this.webExport.template = directory ? await validateDirectory(directory) : null;
     this.persistWebExport();
+    if( this.browserPreview ) this.browserWindow.webContents.send('browser-preview-template', this.webExport.template);
+}
+
+ProjectWindow.prototype.toggleBrowserPreview = async function() {
+    if( this.stoppingPreview ) await this.stoppingPreview.finished;
+    if( this.browserPreview ) { await this.stopBrowserPreview(); return; }
+    const preview = new BrowserPreview();
+    this.browserPreview = preview;
+    events.onProjectSettingsChanged(this.settings);
+    try {
+        await preview.ready;
+        if( this.browserPreview !== preview ) return;
+        this.browserWindow.webContents.send('browser-preview-start', { root: preview.root, template: this.webExport.template || null });
+    } catch(error) {
+        await this.stopBrowserPreview();
+        throw error;
+    }
+}
+
+ProjectWindow.prototype.stopBrowserPreview = async function() {
+    const preview = this.browserPreview;
+    if( !preview ) return this.stoppingPreview?.finished;
+    this.browserPreview = null;
+    this.stoppingPreview = preview;
+    let finish;
+    preview.finished = new Promise(resolve => { finish = resolve; });
+    events.onProjectSettingsChanged(this.settings);
+    try {
+        if( !this.browserWindow.isDestroyed() && !this.browserWindow.webContents.isCrashed() ) {
+            // Let in-flight file copies finish before removing their owned directory.
+            const idle = new Promise(resolve => { preview.stopped = resolve; });
+            this.browserWindow.once('closed', preview.stopped);
+            this.browserWindow.webContents.once('render-process-gone', preview.stopped);
+            this.browserWindow.webContents.send('browser-preview-stop', preview.root);
+            await idle;
+            this.browserWindow.removeListener('closed', preview.stopped);
+            this.browserWindow.webContents.removeListener('render-process-gone', preview.stopped);
+        }
+        await preview.close();
+    } finally {
+        this.stoppingPreview = null;
+        finish();
+        events.onProjectSettingsChanged(this.settings);
+    }
 }
 
 ProjectWindow.prototype.exportForWeb = function() {
@@ -175,7 +222,8 @@ ProjectWindow.prototype.keyboardShortcuts = function() {
     this.browserWindow.webContents.send('keyboard-shortcuts');
 }
 
-ProjectWindow.prototype.finalClose = function() {
+ProjectWindow.prototype.finalClose = async function() {
+    await this.stopBrowserPreview();
     this.safeToClose = true;
     Inklecate.killSessions(this.browserWindow);
     this.browserWindow.close();
@@ -194,6 +242,8 @@ ProjectWindow.prototype.refreshProjectSettings = function(rootInkFilePath) {
     try {
         const settings = ProjectSettings.read(rootInkFilePath);
         const webExport = ProjectSettings.webExport(settings, rootInkFilePath);
+        if( this.browserPreview && webExport.template !== this.webExport.template )
+            this.browserWindow.webContents.send('browser-preview-template', webExport.template || null);
         this.settings = settings;
         this.webExport = webExport;
     } catch(error) {
@@ -351,6 +401,39 @@ ipc.on("main-file-saved", (event, absFilePath) => {
         win.persistWebExport();
     }
     win.refreshProjectSettings(absFilePath);
+});
+
+ipc.handle('browser-preview-publish', async (event, root, revision, content, template) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    const preview = win && win.browserPreview;
+    if( !preview || preview.root !== root ) return;
+    if( !Number.isSafeInteger(revision) || revision < 1 ) throw new Error('Invalid preview revision.');
+    if( await preview.publish(revision, content, template) && !preview.opened ) {
+        preview.opened = true;
+        try { await electron.shell.openExternal(preview.url); }
+        catch(error) { preview.opened = false; throw error; }
+    }
+});
+
+ipc.on('browser-preview-error', (event, root, message) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    const preview = win && win.browserPreview;
+    if( !preview || preview.root !== root ) return;
+    preview.fail(message);
+    if( !preview.opened && !preview.reportedError ) {
+        preview.reportedError = true;
+        dialog.showErrorBox(i18n._('Browser preview not ready'), message + '\n' + i18n._('Fix the problem and save again to update the preview.'));
+    }
+});
+
+ipc.on('browser-preview-stopped', (event, root) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    if( win && win.stoppingPreview?.root === root ) win.stoppingPreview.stopped();
+});
+
+ipc.on('browser-preview-cancel', event => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    if( win ) win.stopBrowserPreview().catch(error => console.error('Preview cleanup failed:', error));
 });
 
 ipc.handle('web-export-complete', async (event, directory, script) => {

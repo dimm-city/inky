@@ -73,11 +73,6 @@ function InkFile(anyPath, mainInkFile, isBrandNew, inkMode, events) {
     // in sync with the (potentially unsaved) editor version.
     this.compilerVersionDirty = true;
 
-    // Flag used to ignore a file system watch event that causes the project
-    // to attempt to reload data that has just changed on disk. When the
-    // save was our own, we can safely ignore it.
-    this.justSaved = false;
-
     this.symbols = new InkFileSymbols(this, {
         includesChanged: (includes) => {
             this.includes = includes.slice();
@@ -104,7 +99,6 @@ function InkFile(anyPath, mainInkFile, isBrandNew, inkMode, events) {
     this.aceDocument.on("change", () => {
         this.hasUnsavedChanges = true;
         this.compilerVersionDirty = true;
-        this.justSaved = false;
         
         if( !this.justLoadedContent ) 
             this.events.fileChanged();
@@ -184,7 +178,6 @@ InkFile.prototype.save = function(afterSaveCallback) {
 
     // Quick save to existing path
     else {
-        this.justSaved = true;
         var fileContent = this.aceDocument.getValue() || "";
         
         // Ensure that the enclosing folder exists beforehand
@@ -196,7 +189,7 @@ InkFile.prototype.save = function(afterSaveCallback) {
             if( err ) 
                 afterSaveCallback(false);
             else {
-                this.hasUnsavedChanges = false;
+                this.hasUnsavedChanges = this.getValue() !== fileContent;
                 afterSaveCallback(true);
             }
         })
@@ -210,13 +203,6 @@ InkFile.prototype.deleteFromDisk = function() {
 }
 
 InkFile.prototype.tryLoadFromDisk = function(loadCallback) {
-
-    // Only being told to load from disk because the InkProject detected
-    // a change event that was our own save? Ignore it just this once.
-    if( this.justSaved ) {
-        this.justSaved = false;
-        return;
-    }
 
     // Simplify code below by using a fallback
     loadCallback = loadCallback || (err => {});
@@ -244,6 +230,8 @@ InkFile.prototype.tryLoadFromDisk = function(loadCallback) {
             // https://en.wikipedia.org/wiki/Byte_order_mark
             data = data.replace(/^\uFEFF/, '');
 
+            if( !this.isLoading && data === this.getValue() ) { loadCallback(null); return; }
+
             // Success - fire this callback before other callbacks 
             // like document change get fired
             loadCallback(null);
@@ -265,6 +253,7 @@ InkFile.prototype.tryLoadFromDisk = function(loadCallback) {
             this.symbols.parse();
 
             this.justLoadedContent = false;
+            if( this.events.diskLoaded ) this.events.diskLoaded();
         });
 
     });
