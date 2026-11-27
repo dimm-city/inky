@@ -149,6 +149,7 @@ async function buildPackageForPlatform(targetPlatform) {
         extendInfo: '../resources/info.plist',
         appBundleId: 'com.inkle.inky',
         prune: true,
+        extraResource: path.resolve(__dirname, '../templates'),
         asar: {
             unpackDir: 'main-process/ink'
         }

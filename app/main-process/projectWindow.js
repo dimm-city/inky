@@ -7,6 +7,7 @@ const fs = require("fs");
 const Inklecate = require("./inklecate.js").Inklecate;
 const Menu = electron.Menu;
 const i18n = require("./i18n/i18n.js");
+const { validateDirectory } = require('../webTemplates.js');
 
 var electronWindowOptions = {
   width: 1300,
@@ -58,6 +59,7 @@ function ProjectWindow(filePath) {
 
     this.safeToClose = false;
     this.mainInkAbsPath = filePath;
+    this.webTemplateDirectory = null;
 
     // Existing project at specific path
     if( filePath ) {
@@ -122,12 +124,18 @@ ProjectWindow.prototype.exportJson = function() {
     this.browserWindow.webContents.send('project-export');
 }
 
+ProjectWindow.templatesDirectory = () => path.join(electron.app.getPath('userData'), 'templates');
+
+ProjectWindow.prototype.selectWebTemplate = async function(directory) {
+    this.webTemplateDirectory = directory ? await validateDirectory(directory) : null;
+}
+
 ProjectWindow.prototype.exportForWeb = function() {
-    this.browserWindow.webContents.send('project-export-for-web');
+    this.browserWindow.webContents.send('project-export-for-web', this.webTemplateDirectory);
 }
 
 ProjectWindow.prototype.exportJSOnly = function() {
-    this.browserWindow.webContents.send('project-export-js-only');
+    this.browserWindow.webContents.send('project-export-js-only', this.webTemplateDirectory);
 }
 
 ProjectWindow.prototype.tryClose = function() {
