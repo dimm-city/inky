@@ -60,7 +60,8 @@ test('read-only and symlinked settings preserve the existing bytes', function() 
     fs.writeFileSync(file, '{"extra":42}');
     fs.chmodSync(file, 0o444);
     try {
-        assert.throws(() => Settings.writeWebExport(main, { template: null }), { code: 'EACCES' });
+        // Windows reports EPERM; POSIX reports EACCES for the same read-only file.
+        assert.throws(() => Settings.writeWebExport(main, { template: null }), error => ['EACCES', 'EPERM'].includes(error.code));
         assert.equal(fs.readFileSync(file, 'utf8'), '{"extra":42}');
     } finally { fs.chmodSync(file, 0o644); }
     fs.unlinkSync(file);
