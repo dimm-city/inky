@@ -48,7 +48,7 @@ test('a session-only template survives saving the story and can be persisted aft
     fs.writeFileSync(settings, '{"webExport":{"template":null},"customInkSnippets":[]}');
     fs.chmodSync(settings, 0o444);
     try { fs.accessSync(settings, fs.constants.W_OK); this.skip(); }
-    catch (error) { if (error.code !== 'EACCES') throw error; }
+    catch (error) { if (!['EACCES', 'EPERM'].includes(error.code)) throw error; }
     try {
         await win.selectWebTemplate(template);
         assert.equal(errors.length, 1);
