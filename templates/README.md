@@ -18,7 +18,8 @@ templates as ZIP files. Extract the ZIP and locate the folder containing
 2. **Import folder…** copies an extracted template into your per-user library.
    Existing names are kept: another copy receives a numbered suffix. Imports
    remain in the library even if you cancel the chooser. **Open library folder**
-   lets you edit or remove those copies. External folders are used in place;
+   lets you edit or remove those copies; returning to Inky refreshes the list.
+   External folders are used in place;
    their source edits remain available without importing again.
    Click **Use template** to apply the highlighted choice to this project, or
    **Cancel** to leave its selection unchanged. A missing folder remains visible;
