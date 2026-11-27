@@ -17,6 +17,26 @@
 - **Export to JSON**: Although this isn't necessary if you're using the [ink-Unity-integration plugin](https://assetstore.unity.com/packages/tools/integration/ink-unity-integration-60055), Inky allows you to export to ink's compiled JSON format, which is especially useful in other ink runtime implementations, such as [inkjs](https://github.com/y-lohse/inkjs), for running **ink** on the web.
 - **File watching**: Modern text editors, including Inky, watch for changes to files on disk, so that if you change them it reflects those changes. This is especially helpful if you keep your **ink** in source control.
 
+## Web templates
+
+Choose **File → Export for web → Classic…** or **Dimm City Neon…**, select an output
+folder, then open its `index.html` in your browser. Choose the template each time
+you export. The native play-as-you-write pane keeps its existing presentation.
+
+Classic retains Inky's original web player. Dimm City Neon uses the illustrated
+neon reader with Begin/Continue, choices, endings, transcript, rewind, save/load
+and restart. Its fonts and cover art are bundled for offline play. It supports
+the supplied `cover.png` image and the template's scene/speaker/caption tags;
+importing project images and narration is not included. Asset provenance and
+font notices are included in the Neon export.
+
+Re-export the full Neon game after story changes. **Export story.js only
+(Classic)…** keeps the original Classic format and cannot update Neon exports.
+Full web exports overwrite their template files; use a separate output folder
+for each template, and keep any manual HTML/CSS edits separately. Browser saves
+depend on the browser and file location. Publishing requires a host that permits
+the exported local scripts and assets.
+
 ## Project status
 
 Inky has been used extensively on multiple projects by different developers. Nevertheless, it isn't as robust or feature complete as many other text editors you may have used, since it's specialist software made by game developers in their spare time.

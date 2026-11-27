@@ -214,12 +214,21 @@ function refresh() {
                     click: callbacks.exportJson
                 },
                 {
-                    label: i18n._('Export for web...'),
+                    label: i18n._('Export for web'),
                     enabled: callbacks.isFocusedWindow,
-                    click: callbacks.exportForWeb
+                    submenu: [
+                        {
+                            label: i18n._('Classic...'),
+                            click: () => callbacks.exportForWeb('classic')
+                        },
+                        {
+                            label: i18n._('Dimm City Neon...'),
+                            click: () => callbacks.exportForWeb('dimm-city')
+                        }
+                    ]
                 },
                 {
-                    label: i18n._('Export story.js only...'),
+                    label: i18n._('Export story.js only (Classic)...'),
                     accelerator: 'CmdOrCtrl+Alt+S',
                     enabled: callbacks.isFocusedWindow,
                     click: callbacks.exportJSOnly

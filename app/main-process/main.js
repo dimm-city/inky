@@ -147,10 +147,10 @@ app.on('ready', function () {
             var win = ProjectWindow.focused();
             if (win) win.exportJson();
         },
-        exportForWeb: () => {
+        exportForWeb: (template) => {
             if( inkJSNeedsUpdating() ) return;
             var win = ProjectWindow.focused();
-            if (win) win.exportForWeb();
+            if (win) win.exportForWeb(template);
         },
         exportJSOnly: () => {
             if( inkJSNeedsUpdating() ) return;

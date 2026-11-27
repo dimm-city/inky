@@ -3,7 +3,6 @@ const path = require("path");
 const fs = require("fs");
 const _ = require("lodash");
 const chokidar = require('chokidar');
-const mkdirp = require('mkdirp');
 const i18n = require('./i18n.js');
 const { InkMode } = require('./ace-ink-mode/ace-ink.js');
 const { PlayerView } = require('./playerView.js');
@@ -372,7 +371,7 @@ function copyFile(source, destination, transform) {
 }
 
 // exportType is "json", "web", or "js"
-InkProject.prototype.export = function(exportType) {
+InkProject.prototype.export = function(exportType, webTemplate = "classic") {
 
     if( !this.ready ) {
         alert(i18n._("Project not quite fully loaded! Please try exporting again in a couple of seconds..."));
@@ -424,7 +423,7 @@ InkProject.prototype.export = function(exportType) {
             ]
         }
 
-        ipcRenderer.invoke('showSaveDialog', saveOptions).then((result) => {
+        ipcRenderer.invoke('showSaveDialog', saveOptions).then(async (result) => {
             let targetSavePath = result.filePath;
             if( targetSavePath ) { 
                 this.defaultExportPath = targetSavePath;
@@ -448,7 +447,8 @@ InkProject.prototype.export = function(exportType) {
     
                         // JS file: 
                         if( exportType == "js" ) {
-                            this.convertJSONToJS(compiledJsonTempPath, targetSavePath);
+                            this.convertJSONToJS(compiledJsonTempPath, targetSavePath)
+                                .catch(err => alert(`${i18n._("Could not export:")} ${err.message}`));
                         } 
     
                         // JSON: Just copy into p
@@ -461,10 +461,10 @@ InkProject.prototype.export = function(exportType) {
     
                 // Web export
                 else {
-                    this.buildForWeb(compiledJsonTempPath, targetSavePath);
+                    await this.buildForWeb(compiledJsonTempPath, targetSavePath, webTemplate);
                 }
             }
-        });
+        }).catch(err => alert(`${i18n._("Could not export:")} ${err.message}`));
 
     });
 }
@@ -473,8 +473,8 @@ InkProject.prototype.exportJson = function() {
     this.export("json");
 }
 
-InkProject.prototype.exportForWeb = function() {
-    this.export("web");
+InkProject.prototype.exportForWeb = function(template) {
+    this.export("web", template);
 }
 
 InkProject.prototype.exportJSOnly = function() {
@@ -499,15 +499,18 @@ InkProject.prototype.jsFilename = function() {
 }
 
 // Convert JSON to JS file with "var storyContent = "
-InkProject.prototype.convertJSONToJS = function(jsonFilePath, targetJSPath) {
-    copyFile(jsonFilePath, targetJSPath, (jsonContent) => {
-        return `var storyContent = ${jsonContent};`;
-    });
+InkProject.prototype.convertJSONToJS = async function(jsonFilePath, targetJSPath) {
+    const jsonContent = await fs.promises.readFile(jsonFilePath, "utf8");
+    await fs.promises.writeFile(targetJSPath, `var storyContent = ${jsonContent};`, "utf8");
 }
 
-InkProject.prototype.buildForWeb = function(jsonFilePath, targetDirectory) {
+InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory, template = "classic") {
 
-    var templateDir = path.join(__dirname, "../export-for-web-template");
+    if( template != "classic" && template != "dimm-city" ) {
+        throw new Error(`Unknown web template: ${template}`);
+    }
+    const neon = template == "dimm-city";
+    const templateDir = path.join(__dirname, neon ? "../export-for-web-dimm-city" : "../export-for-web-template");
 
     // Derive story title from save name
     var storyTitle = path.basename(targetDirectory);
@@ -519,32 +522,39 @@ InkProject.prototype.buildForWeb = function(jsonFilePath, targetDirectory) {
     }
 
     // Create target directory name
-    mkdirp.sync(targetDirectory);
+    await fs.promises.mkdir(targetDirectory, { recursive: true });
 
-    // Create JS story file with correct name
-    var jsFullPath = path.join(targetDirectory, this.jsFilename());
-    this.convertJSONToJS(jsonFilePath, jsFullPath);
+    const jsFilename = neon ? "story.js" : this.jsFilename();
+    const jsFullPath = path.join(targetDirectory, jsFilename);
+    if( neon ) {
+        const content = JSON.parse((await fs.promises.readFile(jsonFilePath, "utf8")).replace(/^\uFEFF/, ""));
+        const seed = 1;
+        const id = require("crypto").createHash("sha256").update(JSON.stringify({ content, seed })).digest("hex");
+        const game = { id, seed, content, media: { "cover.png": "cover.png" }, audio: {}, narrationCoverage: null };
+        await fs.promises.writeFile(jsFullPath, `window.DIMM_GAME = ${JSON.stringify(game)};`, "utf8");
+    } else {
+        await this.convertJSONToJS(jsonFilePath, jsFullPath);
+    }
 
-    // Copy index.html:
-    //  - inserting the filename as the <title> and <h1>
-    //  - Inserting the correct name of the javascript file
-    copyFile(path.join(templateDir, "index.html"), 
-             path.join(targetDirectory, "index.html"), 
-             (fileContent) => {
-        fileContent = fileContent.replace(/##STORY TITLE##/g, storyTitle);
-        fileContent = fileContent.replace(/##JAVASCRIPT FILENAME##/g, this.jsFilename());
-        return fileContent;
-    });
+    const files = neon
+        ? ["base.css", "theme.css", "player.js", "contract.js", "cover.png", "inkjs-LICENSE.md", "SOURCES.md"]
+        : ["style.css", "main.js"];
+    if( neon ) {
+        // Copy font files individually: recursive cp cannot traverse an ASAR directory.
+        await fs.promises.mkdir(path.join(targetDirectory, "fonts"), { recursive: true });
+        for( const font of await fs.promises.readdir(path.join(templateDir, "fonts")) ) {
+            files.push(path.join("fonts", font));
+        }
+    }
+    for( const file of files ) {
+        await fs.promises.copyFile(path.join(templateDir, file), path.join(targetDirectory, file));
+    }
+    await fs.promises.copyFile(path.join(__dirname, "../node_modules/inkjs/dist/ink.js"), path.join(targetDirectory, "ink.js"));
 
-    // Copy other files verbatim
-    copyFile(path.join(__dirname, "../node_modules/inkjs/dist/ink.js"),
-             path.join(targetDirectory, "ink.js"));
-
-    copyFile(path.join(templateDir, "style.css"), 
-             path.join(targetDirectory, "style.css"));
-
-    copyFile(path.join(templateDir, "main.js"), 
-         path.join(targetDirectory, "main.js"));
+    const html = (await fs.promises.readFile(path.join(templateDir, "index.html"), "utf8"))
+        .replace(/##STORY TITLE##/g, () => storyTitle)
+        .replace(/##JAVASCRIPT FILENAME##/g, () => jsFilename);
+    await fs.promises.writeFile(path.join(targetDirectory, "index.html"), html, "utf8");
 }
 
 InkProject.prototype.tryClose = function() {
@@ -749,9 +759,9 @@ ipcRenderer.on("project-export", (event) => {
     }
 });
 
-ipcRenderer.on("project-export-for-web", (event) => {
+ipcRenderer.on("project-export-for-web", (event, template) => {
     if( InkProject.currentProject ) {
-        InkProject.currentProject.exportForWeb();
+        InkProject.currentProject.exportForWeb(template);
     }
 });
 
