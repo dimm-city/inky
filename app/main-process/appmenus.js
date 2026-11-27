@@ -8,6 +8,8 @@ const Menu = electron.Menu;
 const ProjectWindow = require("./projectWindow.js").ProjectWindow;
 const inkSnippets = require("./inkSnippets.js").snippets;
 const i18n = require('./i18n/i18n.js');
+const path = require('path');
+const { listDirectories } = require('../webTemplates.js');
 
 let recentFiles = [];
 let customInkSnippets = [];
@@ -21,6 +23,41 @@ let callbacks = {
 };
 
 function refresh() {
+    const projectWindow = ProjectWindow.focused();
+    const selectedTemplate = projectWindow ? projectWindow.webTemplateDirectory : null;
+    let templateDirectories = [];
+    let templateReadError = null;
+    try {
+        templateDirectories = listDirectories(ProjectWindow.templatesDirectory());
+    } catch(error) {
+        templateReadError = error.message;
+    }
+    if( selectedTemplate && !templateDirectories.includes(selectedTemplate) ) {
+        templateDirectories.push(selectedTemplate);
+    }
+    const webTemplates = [
+        {
+            label: i18n._('Default'),
+            type: 'radio',
+            checked: !selectedTemplate,
+            click: () => callbacks.selectWebTemplate(null)
+        },
+        ...templateDirectories.map(directory => ({
+            label: path.basename(directory),
+            type: 'radio',
+            checked: directory === selectedTemplate,
+            click: () => callbacks.selectWebTemplate(directory)
+        }))
+    ];
+    if( templateReadError ) {
+        webTemplates.push({ label: `${i18n._('Could not read templates:')} ${templateReadError}`, enabled: false });
+    }
+    webTemplates.push(
+        { type: 'separator' },
+        { label: i18n._('Choose template folder...'), click: callbacks.chooseWebTemplate },
+        { label: i18n._('Open templates folder'), click: callbacks.openTemplatesFolder },
+        { label: i18n._('Refresh templates'), click: refresh }
+    );
     
     let themes = [];
 
@@ -214,21 +251,17 @@ function refresh() {
                     click: callbacks.exportJson
                 },
                 {
-                    label: i18n._('Export for web'),
+                    label: i18n._('Web template'),
                     enabled: callbacks.isFocusedWindow,
-                    submenu: [
-                        {
-                            label: i18n._('Classic...'),
-                            click: () => callbacks.exportForWeb('classic')
-                        },
-                        {
-                            label: i18n._('Dimm City Neon...'),
-                            click: () => callbacks.exportForWeb('dimm-city')
-                        }
-                    ]
+                    submenu: webTemplates
                 },
                 {
-                    label: i18n._('Export story.js only (Classic)...'),
+                    label: i18n._('Export for web...'),
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.exportForWeb
+                },
+                {
+                    label: i18n._('Export story.js only...'),
                     accelerator: 'CmdOrCtrl+Alt+S',
                     enabled: callbacks.isFocusedWindow,
                     click: callbacks.exportJSOnly

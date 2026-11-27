@@ -1,10 +1,12 @@
-# Dimm City Neon template sources
+# Dimm City template sources
 
 Imported 2026-11-27 from the Dimm City Ink skill, version 1.1.0
 (`dimm-city/agent-stash`, `skills/dimm-city-ink`). The skill's original source
-file SHA-256 values are recorded below. Only index.html was adapted: its four
-inline-build markers were replaced by local stylesheet/script references.
-The player, tag contract, CSS, illustration and fonts are otherwise unchanged.
+file SHA-256 values are recorded below. The HTML build markers were replaced by local stylesheet/script references.
+The player consumes Inky's standard storyContent payload and computes its
+content/seed save identity in the browser. The tag contract, CSS, illustration
+and fonts are otherwise unchanged. The original source hashes below describe
+the upstream skill assets before these adaptations.
 
 The presentation follows the skill's current neon cinematic template. The fox
 courier cover is the skill's original generated example illustration, not

@@ -1,7 +1,10 @@
 /* Cinematic Ink reader. Narration follows the displayed frame, never prefetched output. */
-(() => {
+(async () => {
   'use strict';
-  const game = window.DIMM_GAME;
+  const content = window.storyContent, seed = 1;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify({ content, seed })));
+  const id = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
+  const game = { id, seed, content, media: { 'cover.png': 'cover.png' }, audio: {}, narrationCoverage: null };
   const contract = window.DimmInkContract;
   const ui = Object.fromEntries(['title','subtitle','description','cover-description','author','footer-title','intro','reader','scene','scene-figure','scene-image','scene-description','scene-caption','speaker','speaker-caption','story-card','passages','choices','decision-panel','decision-context','ending-panel','ending-title','ending-description','status','begin','continue','rewind','save','load','restart','again','transcript-open','transcript-modal','transcript-close','transcript-lines','ending-transcript','sound-toggle','voice-controls','voice-status','voice-time','voice-progress','voice-play','narration'].map(id => [id, document.getElementById(id)]));
   const storageKey = `dimm-ink:${game.id}`;
@@ -277,4 +280,8 @@
     ui['cover-description'].hidden = !meta.cover_description;
     render();
   } catch (error) { fail(error); }
-})();
+})().catch(error => {
+  const status = document.getElementById('status');
+  status.textContent = `Story error: ${error.message}`;
+  status.setAttribute('data-error', '');
+});
