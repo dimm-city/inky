@@ -8,6 +8,8 @@ const Inklecate = require("./inklecate.js").Inklecate;
 const Menu = electron.Menu;
 const i18n = require("./i18n/i18n.js");
 const { validateDirectory } = require('../webTemplates.js');
+const ProjectSettings = require('../projectSettings.js');
+const { pathToFileURL } = require('url');
 
 var electronWindowOptions = {
   width: 1300,
@@ -59,7 +61,8 @@ function ProjectWindow(filePath) {
 
     this.safeToClose = false;
     this.mainInkAbsPath = filePath;
-    this.webTemplateDirectory = null;
+    this.settings = {};
+    this.webExport = {};
 
     // Existing project at specific path
     if( filePath ) {
@@ -126,16 +129,38 @@ ProjectWindow.prototype.exportJson = function() {
 
 ProjectWindow.templatesDirectory = () => path.join(electron.app.getPath('userData'), 'templates');
 
+ProjectWindow.prototype.persistWebExport = function() {
+    if( !this.mainInkAbsPath || !Object.keys(this.webExport).length ) return;
+    try {
+        this.settings = ProjectSettings.writeWebExport(this.mainInkAbsPath, this.webExport);
+    } catch(error) {
+        dialog.showErrorBox(i18n._('Project settings not saved'),
+            i18n._('Web export settings are active for this session, but could not be saved.') + '\n' + error.message);
+    }
+}
+
 ProjectWindow.prototype.selectWebTemplate = async function(directory) {
-    this.webTemplateDirectory = directory ? await validateDirectory(directory) : null;
+    this.webExport.template = directory ? await validateDirectory(directory) : null;
+    this.persistWebExport();
 }
 
 ProjectWindow.prototype.exportForWeb = function() {
-    this.browserWindow.webContents.send('project-export-for-web', this.webTemplateDirectory);
+    this.browserWindow.webContents.send('project-export-for-web', this.webExport);
 }
 
 ProjectWindow.prototype.exportJSOnly = function() {
-    this.browserWindow.webContents.send('project-export-js-only', this.webTemplateDirectory);
+    this.browserWindow.webContents.send('project-export-js-only', this.webExport);
+}
+
+ProjectWindow.prototype.openExportedGame = async function() {
+    const file = this.webExport.directory && path.join(this.webExport.directory, 'index.html');
+    try {
+        if( !file || !(await fs.promises.stat(file)).isFile() ) throw new Error(i18n._('No exported game is available.'));
+        await electron.shell.openExternal(pathToFileURL(file).href);
+    } catch(error) {
+        dialog.showErrorBox(i18n._('Could not open exported game'),
+            i18n._('Export for web again, choosing the game folder, then try opening it.') + '\n' + error.message);
+    }
 }
 
 ProjectWindow.prototype.tryClose = function() {
@@ -164,65 +189,19 @@ ProjectWindow.prototype.zoom = function(amount) {
     this.browserWindow.webContents.send('zoom', amount);
 }
 
-// Try to load up an optional <ink_root_file_name>.settings.json file
+// The existing sidecar owns project preferences, including web exports.
 ProjectWindow.prototype.refreshProjectSettings = function(rootInkFilePath) {
-    
-    let self = this;
-
-
-    const resolvedRootPath = path.resolve(rootInkFilePath);
-    let basePath = rootInkFilePath;
-    if( path.extname(resolvedRootPath) == ".ink" ) {
-        basePath = rootInkFilePath.substring(0, resolvedRootPath.length-4)
+    try {
+        const settings = ProjectSettings.read(rootInkFilePath);
+        const webExport = ProjectSettings.webExport(settings, rootInkFilePath);
+        this.settings = settings;
+        this.webExport = webExport;
+    } catch(error) {
+        dialog.showErrorBox(i18n._('Project Settings Error'), ProjectSettings.filename(rootInkFilePath) + '\n' + error.message);
     }
-    const settingsPath = basePath + ".settings.json";
-
-
-    function completeSettings(settings, err) {
-        if( events.onProjectSettingsChanged ) {
-            events.onProjectSettingsChanged(settings);
-        }
-
-        self.browserWindow.send("project-settings-changed", self.settings);
-
-        if( err ) {
-            dialog.showErrorBox("Project Settings Error", err);
-        }
-    }
-
-    fs.stat(settingsPath, (err, stats) => {
-        if( err || !stats.isFile() ) { 
-            events.onProjectSettingsChanged({});
-            return;
-        }
-
-        fs.readFile(settingsPath, "utf8", (err, fileContent) => {
-
-            if( err ) {
-                completeSettings({}, "File read error - failed to load project settings file at: "+settingsPath);
-                return;
-            }
-            if( !fileContent ) {
-                completeSettings({}, "Project settings file appeared to be empty: "+settingsPath);
-                return;
-            }
-
-            let settings = {};
-            try {
-                settings = JSON.parse(fileContent);
-            } catch(error) {
-                completeSettings({}, "Project settings file appeared to be invalid JSON: "+settingsPath+": "+error);
-                return;
-            }
-
-            self.settings = settings;
-
-            completeSettings(settings);
-        });
-
-    });
+    this.browserWindow.webContents.send('project-settings-changed', this.settings);
+    events.onProjectSettingsChanged(this.settings);
 }
-
 
 ProjectWindow.all = () => windows;
 
@@ -361,11 +340,36 @@ ProjectWindow.addOrChangeViewSetting = function(name, data){
 
 
 ipc.on("main-file-saved", (event, absFilePath) => {
+    if( !absFilePath ) return;
     addRecentFile(absFilePath);
 
     var win = ProjectWindow.withWebContents(event.sender);
+    const previousPath = win.mainInkAbsPath;
     win.mainInkAbsPath = absFilePath;
+    if( previousPath != absFilePath ) {
+        if( previousPath ) win.webExport = { template: win.webExport.template || null, directory: null, script: null };
+        win.persistWebExport();
+    }
     win.refreshProjectSettings(absFilePath);
+});
+
+ipc.handle('web-export-complete', async (event, directory, script) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    const previousDirectory = win.webExport.directory;
+    win.webExport.directory = directory;
+    win.webExport.script = script;
+    win.persistWebExport();
+    events.onProjectSettingsChanged(win.settings);
+    if( previousDirectory == directory ) return;
+    const result = await dialog.showMessageBox(win.browserWindow, {
+        type: 'info',
+        message: i18n._('Game exported'),
+        detail: directory,
+        buttons: [i18n._('Done'), i18n._('Open exported game')],
+        defaultId: 0,
+        cancelId: 0
+    });
+    if( result.response == 1 ) await win.openExportedGame();
 });
 
 ipc.on("project-final-close", (event) => {

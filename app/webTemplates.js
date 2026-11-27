@@ -43,6 +43,15 @@ function contains(parent, child) {
     return relative == '' || (relative != '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
 }
 
+async function rejectDestinationSymlink(file) {
+    try {
+        if( (await fs.promises.lstat(file)).isSymbolicLink() ) {
+            throw new Error(`Export destination symlinks are not supported: ${file}`);
+        }
+    } catch(error) {
+        if( error.code != 'ENOENT' ) throw error;
+    }
+}
 async function copyDirectory(source, destination, generatedFiles = []) {
     source = await fs.promises.realpath(source);
     const checkDestination = target => {
@@ -55,15 +64,6 @@ async function copyDirectory(source, destination, generatedFiles = []) {
     await fs.promises.mkdir(destination, { recursive: true });
     checkDestination(await fs.promises.realpath(destination));
 
-    async function rejectDestinationSymlink(file) {
-        try {
-            if( (await fs.promises.lstat(file)).isSymbolicLink() ) {
-                throw new Error(`Export destination symlinks are not supported: ${file}`);
-            }
-        } catch(error) {
-            if( error.code != 'ENOENT' ) throw error;
-        }
-    }
     for( const file of generatedFiles ) {
         await rejectDestinationSymlink(path.join(destination, file));
     }
@@ -90,4 +90,4 @@ async function copyDirectory(source, destination, generatedFiles = []) {
     await copy();
 }
 
-module.exports = { validateDirectory, listDirectories, copyDirectory };
+module.exports = { validateDirectory, listDirectories, copyDirectory, rejectDestinationSymlink, contains };

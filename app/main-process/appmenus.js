@@ -9,6 +9,7 @@ const ProjectWindow = require("./projectWindow.js").ProjectWindow;
 const inkSnippets = require("./inkSnippets.js").snippets;
 const i18n = require('./i18n/i18n.js');
 const path = require('path');
+const fs = require('fs');
 const { listDirectories } = require('../webTemplates.js');
 
 let recentFiles = [];
@@ -24,7 +25,7 @@ let callbacks = {
 
 function refresh() {
     const projectWindow = ProjectWindow.focused();
-    const selectedTemplate = projectWindow ? projectWindow.webTemplateDirectory : null;
+    const selectedTemplate = projectWindow ? projectWindow.webExport.template : null;
     let templateDirectories = [];
     let templateReadError = null;
     try {
@@ -35,15 +36,30 @@ function refresh() {
     if( selectedTemplate && !templateDirectories.includes(selectedTemplate) ) {
         templateDirectories.push(selectedTemplate);
     }
+    const templateLabel = directory => {
+        let label = path.basename(directory);
+        if( label.toLowerCase() == 'template' || templateDirectories.filter(other => path.basename(other) == label).length > 1 ) {
+            const location = value => path.dirname(value).split(path.sep).filter(Boolean).slice(-2).join(path.sep);
+            const ambiguous = templateDirectories.some(other => other != directory && path.basename(other) == path.basename(directory) && location(other) == location(directory));
+            label += ' — ' + (ambiguous ? path.dirname(directory) : '…' + path.sep + location(directory));
+        }
+        try {
+            if( !fs.statSync(path.join(directory, 'index.html')).isFile() ) label += ' (' + i18n._('unavailable') + ')';
+        } catch(error) {
+            label += ' (' + i18n._(error.code == 'ENOENT' ? 'missing' : 'unavailable') + ')';
+        }
+        return label;
+    };
+    const currentTemplateLabel = selectedTemplate ? templateLabel(selectedTemplate) : i18n._('Classic (built-in)');
     const webTemplates = [
         {
-            label: i18n._('Default'),
+            label: i18n._('Classic (built-in)'),
             type: 'radio',
             checked: !selectedTemplate,
             click: () => callbacks.selectWebTemplate(null)
         },
         ...templateDirectories.map(directory => ({
-            label: path.basename(directory),
+            label: templateLabel(directory),
             type: 'radio',
             checked: directory === selectedTemplate,
             click: () => callbacks.selectWebTemplate(directory)
@@ -55,8 +71,7 @@ function refresh() {
     webTemplates.push(
         { type: 'separator' },
         { label: i18n._('Choose template folder...'), click: callbacks.chooseWebTemplate },
-        { label: i18n._('Open templates folder'), click: callbacks.openTemplatesFolder },
-        { label: i18n._('Refresh templates'), click: refresh }
+        { label: i18n._('Open template library'), click: callbacks.openTemplatesFolder }
     );
     
     let themes = [];
@@ -245,13 +260,8 @@ function refresh() {
                     type: 'separator'
                 },
                 {
-                    label: i18n._('Export to JSON...'),
-                    accelerator: 'CmdOrCtrl+Shift+S',
-                    enabled: callbacks.isFocusedWindow,
-                    click: callbacks.exportJson
-                },
-                {
-                    label: i18n._('Web template'),
+                    label: i18n._('Web template:') + ' ' + currentTemplateLabel,
+                    id: 'web-template',
                     enabled: callbacks.isFocusedWindow,
                     submenu: webTemplates
                 },
@@ -261,7 +271,19 @@ function refresh() {
                     click: callbacks.exportForWeb
                 },
                 {
-                    label: i18n._('Export story.js only...'),
+                    label: i18n._('Open exported game'),
+                    enabled: !!(projectWindow && projectWindow.webExport.directory),
+                    click: callbacks.openExportedGame
+                },
+                { type: 'separator' },
+                {
+                    label: i18n._('Export to JSON...'),
+                    accelerator: 'CmdOrCtrl+Shift+S',
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.exportJson
+                },
+                {
+                    label: i18n._('Export story content only...'),
                     accelerator: 'CmdOrCtrl+Alt+S',
                     enabled: callbacks.isFocusedWindow,
                     click: callbacks.exportJSOnly

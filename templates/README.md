@@ -18,31 +18,71 @@ the `templates/classic` folder directly, download the repository ZIP from its Co
 menu and extract that folder, or create the template ZIP locally as described below.
 Templates from other authors use the same directory format.
 
-1. **File → Web template → Open templates folder** opens Inky's global template
-   library: the `templates` directory inside your per-user application data.
-   Copy each downloaded template into its own subfolder there. Select **Refresh
-   templates**, or return to the Inky window, to refresh the menu.
-2. Select an installed folder under **File → Web template**, or use **Choose
-   template folder…** to select a template from any other accessible location.
-3. Choose **File → Export for web…**, then open the exported `index.html` in your
-   browser.
+1. **File → Web template: … → Open template library** opens the `templates`
+   directory inside your per-user application data. Copy downloaded templates into
+   separate subfolders. Returning to Inky refreshes the list automatically.
+2. Select a library entry, or use **Choose template folder…** to select a template
+   from any accessible location. The File menu shows the selected name. Location
+   suffixes distinguish generic or duplicate folder names.
+3. Choose **File → Export for web…** and select a dedicated output folder, creating
+   one in the native folder picker if needed. The suggested `web` subfolder keeps
+   output separate; do not select a folder containing your Ink source or template. Export copies the complete player, story and assets.
+4. On the first export or a new destination, the completion dialog names the folder
+   and offers **Open exported game**. The command is also available in File. Repeat
+   exports to the same folder finish without another completion dialog.
+5. Edit your story, **Export for web…** again to the preselected folder, then refresh
+   its browser tab. Use the same full export after changing templates or artwork.
 
-**Default** clears the selection and uses the built-in Classic template.
-Selection applies to the current window; new windows start with Default. An
-unavailable or invalid selected directory reports an error without silently
-switching designs. The native play-as-you-write pane keeps its existing
-presentation.
+**Classic (built-in)** uses the original player without selecting a folder.
+The native play-as-you-write pane keeps its existing presentation; the selected
+web template is tested in the browser.
 
 Template files are copied into the export, not executed by Inky. Installing a
-template does not run installation scripts. Keep sources in a dedicated folder
-separate from output. Full exports overwrite template files but preserve unrelated
-destination files. Edit source HTML/CSS and export again after template changes;
-keep manual edits to generated files separately. Browser saves depend on the
-player and file location.
+template does not run installation scripts. Full exports overwrite template
+files but preserve unrelated destination files; they do not prune obsolete assets.
+Edit the template source and re-export rather than editing generated layout files.
+Browser saves depend on the player, compiled content and file location.
 
-**Export story.js only…** updates story content without replacing the design.
-Select the same template and target its existing exported story script. Re-export
-the full folder when layout or assets change.
+### Project preferences
+
+Inky saves the template and last successful full-export association in the
+existing `<main-story>.settings.json` beside the main Ink file. No manual JSON
+editing is required. For example:
+
+```json
+{
+    "webExport": {
+        "template": "template",
+        "directory": "web",
+        "script": "story.js"
+    }
+}
+```
+
+`template` is a folder path or `null` for Classic. `directory` is the successful
+export folder; `script` is the actual generated JavaScript filename, which can
+be source-derived for Classic. Paths inside the project are stored relative to
+the main Ink file; external paths remain absolute and machine-specific. Sharing
+settings does not install an external template on another machine.
+
+An untitled story keeps the choice for the session and stores it when first saved.
+Other existing settings are preserved. If JSON is malformed or settings cannot be
+written, Inky reports that the selection is session-only instead of overwriting
+the file. Missing template folders remain selected and identifiable; choose their
+new location or deliberately select Classic. A failed or canceled export retains
+the last successful destination. JSON export uses its own file suggestion.
+
+### Advanced: content-only updates
+
+**Export story content only…** updates an existing JavaScript story file without
+replacing the layout. Its picker starts at the exact script from the last full
+export, regardless of the current template selection. Select the existing script
+used by that game's HTML; this action does not create a new unreferenced file.
+It can update an existing game when the template source is unavailable.
+
+Use a full export to apply a different template, artwork or styles. Narration and
+other assets are not regenerated by a content-only update. Keep manual changes
+to generated files separately; template sources are the ordinary place to edit.
 
 ## Create a template
 
@@ -82,7 +122,8 @@ copy this `templates` directory into their resources folder; development builds
 read it directly from the repository.
 
 With Node.js 20 or newer, run `node app/test/web-templates.test.cjs` from the
-repository root for the template filesystem checks.
+repository root for the template filesystem checks. Run
+`node app/test/project-settings.test.cjs` for sidecar preservation and path checks.
 
 The Linux release job packages Classic from the checked-out commit and attaches
 `inky-template-classic.zip` using the existing release upload step. To create the

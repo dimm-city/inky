@@ -43,6 +43,9 @@ To keep up to date with the latest news about ink [sign up for the mailing list]
 
 To customise Inky settings for your specific ink project, create a JSON file with the same name as your main ink file, except with a `.settings.json` extension. For example, if your main ink file is called `my_great_story.ink`, then name your JSON file `my_great_story.settings.json`.
 
+Web export preferences are saved automatically in this same file; see the
+[web template guide](templates/README.md#project-preferences).
+
 Here is an example settings file:
 
     {

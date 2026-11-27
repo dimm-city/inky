@@ -48,9 +48,13 @@ ipcMain.on('show-context-menu', (event) => {
 
 
 ipcMain.handle("showSaveDialog", async (event,saveOptions) => {
-    return dialog.showSaveDialog(saveOptions) 
+    return dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), saveOptions)
 
 })
+
+ipcMain.handle('showOpenDialog', (event, options) => {
+    return dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), options);
+});
 
 ipcMain.handle("try-close", async (event) =>{
     return dialog.showMessageBox({
@@ -155,6 +159,7 @@ app.on('ready', function () {
                 AppMenus.refresh();
             } catch(error) {
                 dialog.showErrorBox(i18n._('Template Error'), error.message);
+                AppMenus.refresh();
             }
         },
         chooseWebTemplate: async () => {
@@ -163,7 +168,7 @@ app.on('ready', function () {
             try {
                 const result = await dialog.showOpenDialog(win.browserWindow, {
                     title: i18n._('Choose web template folder'),
-                    defaultPath: ProjectWindow.templatesDirectory(),
+                    defaultPath: win.webExport.template || ProjectWindow.templatesDirectory(),
                     properties: ['openDirectory']
                 });
                 if( result.canceled ) return;
@@ -171,6 +176,7 @@ app.on('ready', function () {
                 AppMenus.refresh();
             } catch(error) {
                 dialog.showErrorBox(i18n._('Template Error'), error.message);
+                AppMenus.refresh();
             }
         },
         openTemplatesFolder: async () => {
@@ -187,6 +193,10 @@ app.on('ready', function () {
             if( inkJSNeedsUpdating() ) return;
             var win = ProjectWindow.focused();
             if (win) win.exportForWeb();
+        },
+        openExportedGame: () => {
+            const win = ProjectWindow.focused();
+            if( win ) win.openExportedGame();
         },
         exportJSOnly: () => {
             if( inkJSNeedsUpdating() ) return;
