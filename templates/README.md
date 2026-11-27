@@ -168,9 +168,9 @@ IDs, theme names, a metadata manifest or executable build hooks.
 All source files and subdirectories are copied, including notices: keep private
 files and output directories outside the template. Nested source symlinks and
 destination symlinks, including the export folder itself, are rejected.
-Use local browser-compatible script/resource references for offline play; no
-server is started by Inky. Export to a separate folder and keep edits in the
-template sources. JSON export and the native testing pane are unchanged.
+Use local browser-compatible script/resource references for offline play.
+Ordinary exports are static files; live preview serves a separate temporary copy.
+Export to a separate folder and keep edits in the template sources. JSON export and the native testing pane are unchanged.
 
 ## Development
 

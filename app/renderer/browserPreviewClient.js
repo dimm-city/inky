@@ -12,6 +12,7 @@
         if( !notice ) return;
         clearTimeout(hideTimer);
         notice.textContent = value.message;
+        host.dataset.state = value.state;
         restart.hidden = value.state !== 'restart';
         host.hidden = false;
         // Healthy updates should not cover the game's own reading controls.
@@ -30,7 +31,7 @@
         host.id = 'inky-browser-preview';
         host.setAttribute('aria-label', 'Inky live browser preview');
         const shadow = host.attachShadow({ mode: 'open' });
-        shadow.innerHTML = '<style>:host{position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:min(440px,calc(100vw - 24px));font:14px/1.4 system-ui,sans-serif;color:#fff}:host([hidden]){display:none}div{display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:#18212f;border:1px solid #8192a8;border-radius:6px;padding:10px;box-shadow:0 2px 12px #0006;max-height:50vh;overflow:auto}span{flex:1;min-width:120px;overflow-wrap:anywhere}button{font:inherit;min-height:36px;padding:6px 10px;cursor:pointer}button[hidden]{display:none}button:focus-visible{outline:2px solid #8bded5;outline-offset:2px}</style><div><span role="status"></span><button type="button" data-action="restart" hidden>Restart preview</button><button type="button" data-action="hide" aria-label="Hide preview status">Hide</button></div>';
+        shadow.innerHTML = '<style>:host{position:fixed;bottom:12px;right:12px;z-index:2147483647;max-width:min(440px,calc(100vw - 24px));font:14px/1.4 system-ui,sans-serif;color:#fff}:host([hidden]){display:none}div{display:flex;align-items:center;flex-wrap:wrap;gap:8px;background:#18212f;border:1px solid #8192a8;border-radius:6px;padding:10px;box-shadow:0 2px 12px #0006;max-height:50vh;overflow:auto}span{flex:1;min-width:120px;overflow-wrap:anywhere}:host([data-state=error]) span,:host([data-state=restart]) span{flex-basis:100%}[data-action=hide]{margin-left:auto}button{font:inherit;min-height:36px;padding:6px 10px;cursor:pointer}button[hidden]{display:none}button:focus-visible{outline:2px solid #8bded5;outline-offset:2px}</style><div><span role="status"></span><button type="button" data-action="restart" hidden>Restart preview</button><button type="button" data-action="hide" aria-label="Hide preview status">Hide</button></div>';
         notice = shadow.querySelector('span');
         restart = shadow.querySelector('[data-action="restart"]');
         restart.addEventListener('click', () => location.reload());
