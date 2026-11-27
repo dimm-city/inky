@@ -3,11 +3,13 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const http = require('node:http');
+const os = require('node:os');
 const { BrowserPreview } = require('../main-process/browserPreview.js');
 
-const previews = [];
+const previews = [], roots = [];
 afterEach(async () => {
     for (const preview of previews.splice(0)) await preview.close();
+    for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
 });
 async function fixture() {
     const preview = new BrowserPreview();
@@ -50,6 +52,25 @@ test('serves completed exports on loopback and injects the client only into the 
     const head = await request(preview.url, {}, 'HEAD');
     assert.equal(head.body.length, 0);
     assert.equal(Number(head.headers['content-length']), page.body.length);
+});
+
+test('serves a preview when the system temp directory is a symlink or junction', async function() {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'inky-temp-alias-test-'));
+    roots.push(root);
+    const actual = path.join(root, 'actual'), alias = path.join(root, 'alias');
+    await fs.mkdir(actual);
+    try { await fs.symlink(actual, alias, 'junction'); }
+    catch(error) { if( error.code === 'EPERM' ) this.skip(); throw error; }
+    const original = os.tmpdir;
+    let preview;
+    try {
+        os.tmpdir = () => alias;
+        preview = new BrowserPreview(); previews.push(preview);
+    } finally { os.tmpdir = original; }
+    await preview.ready;
+    await build(preview, 1);
+    await preview.publish(1, {}, null);
+    assert.equal((await request(preview.url)).code, 200);
 });
 
 test('rejects other hosts, origins, sessions, traversal, methods and symlink escapes', async function() {
