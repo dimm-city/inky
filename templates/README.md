@@ -2,21 +2,15 @@
 
 Templates are standalone directories, separate from Inky's core application.
 
-| Template | Download | Description |
-| --- | --- | --- |
-| [Classic](classic/) | [Release ZIP](https://github.com/dimm-city/inky/releases/latest/download/inky-template-classic.zip) | The original web player, used automatically when Default is selected. |
+| Template | Description |
+| --- | --- |
+| [Classic](classic/) | Inky's original web player, selected by default. |
 
 ## Download and use
 
-Download the template ZIP from the catalog and extract it. The archive contains
-one `classic/` folder with `index.html` and its assets; no repository checkout or
-package installation is needed.
-
-The release download becomes available after the first release containing
-`inky-template-classic.zip` is published. For an unreleased source snapshot, use
-the `templates/classic` folder directly, download the repository ZIP from its Code
-menu and extract that folder, or create the template ZIP locally as described below.
-Templates from other authors use the same directory format.
+Classic is built into Inky; no download is needed. Other authors can distribute
+templates as ZIP files. Extract the ZIP and locate the folder containing
+`index.html` and the template's assets.
 
 1. **File → Web template: … → Open template library** opens the `templates`
    directory inside your per-user application data. Copy downloaded templates into
@@ -25,8 +19,10 @@ Templates from other authors use the same directory format.
    from any accessible location. The File menu shows the selected name. Location
    suffixes distinguish generic or duplicate folder names.
 3. Choose **File → Export for web…** and select a dedicated output folder, creating
-   one in the native folder picker if needed. The suggested `web` subfolder keeps
-   output separate; do not select a folder containing your Ink source or template. Export copies the complete player, story and assets.
+   one in the native folder picker if needed. For a new export, the picker
+   starts in your project folder: create and select a `web` subfolder. Do not
+   select a folder containing your Ink source or template. Export copies the
+   complete player, story and assets.
 4. On the first export or a new destination, the completion dialog names the folder
    and offers **Open exported game**. The command is also available in File. Repeat
    exports to the same folder finish without another completion dialog.
@@ -178,22 +174,20 @@ template sources. JSON export and the native testing pane are unchanged.
 copy this `templates` directory into their resources folder; development builds
 read it directly from the repository.
 
-With Node.js 20 or newer, run `node app/test/web-templates.test.cjs` from the
-repository root for the template filesystem checks. Run
-`node app/test/project-settings.test.cjs` for sidecar preservation and path checks.
-
-The Linux release job packages Classic from the checked-out commit and attaches
-`inky-template-classic.zip` using the existing release upload step. To create the
-same archive locally without building the app, run from the repository root:
+Run the filesystem, project-settings and workflow tests with the existing Mocha
+runner (Node.js 20 or newer):
 
 ```sh
-mkdir -p ReleaseUpload
-git archive --format=zip --prefix=classic/ --output=ReleaseUpload/inky-template-classic.zip HEAD:templates/classic
+cd app
+npm ci
+npm test
 ```
 
-This packages committed source files, so commit template edits before running it.
+The test workflow runs this command on Linux, macOS and Windows. It uses no
+signing credentials and does not build or publish releases. Native dialogs and
+OS browser launching still need app smoke tests on each platform.
 
-For live-preview checks, run `node app/test/browser-preview.test.cjs` for real
-HTTP/SSE, containment, media and cleanup checks, and
-`node app/test/browser-preview-player.test.cjs` for Classic's real inkjs/player
-state and presentation regressions (using the existing jsdom development dependency).
+`app/test/test.js` is the old Spectron application suite. Spectron is no longer
+an installed dependency; that file is retained for a separate migration and is
+not included in the unit-test command.
+

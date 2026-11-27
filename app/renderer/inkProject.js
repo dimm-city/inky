@@ -388,7 +388,7 @@ InkProject.prototype.export = function(exportType, webExport = {}) {
                 const result = await ipcRenderer.invoke('showOpenDialog', {
                     title: i18n._('Export game to folder'),
                     buttonLabel: i18n._('Export'),
-                    defaultPath: webExport.directory || (this.mainInk.projectDir && path.join(this.mainInk.projectDir, 'web')),
+                    defaultPath: webExport.directory || this.mainInk.projectDir,
                     properties: ['openDirectory', 'createDirectory']
                 });
                 if( result.canceled ) return;

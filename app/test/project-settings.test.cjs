@@ -1,18 +1,22 @@
-const { test } = require('node:test');
+const { it: test, afterEach } = require('mocha');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const Settings = require('../projectSettings.js');
 
-function fixture(t) {
+const roots = [];
+afterEach(() => {
+    for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true });
+});
+function fixture() {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), 'inky-settings-test-'));
-    t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+    roots.push(root);
     return { root, main: path.join(root, 'night-shift.ink'), file: path.join(root, 'night-shift.settings.json') };
 }
 
-test('web preferences preserve authored settings and portable project paths', t => {
-    const { root, main, file } = fixture(t);
+test('web preferences preserve authored settings and portable project paths', function() {
+    const { root, main, file } = fixture();
     const existing = { customInkSnippets: [{ name: 'Example', ink: 'Text' }], instructionPrefix: '>>>', extra: 42, webExport: { authorOption: true } };
     fs.writeFileSync(file, JSON.stringify(existing));
     const value = { template: path.join(root, 'template'), directory: path.join(root, 'web'), script: 'story.js' };
@@ -33,8 +37,8 @@ test('web preferences preserve authored settings and portable project paths', t 
     assert.equal(Settings.webExport(saved, moved).directory, path.join(root, 'moved/web'));
 });
 
-test('external template paths stay absolute and Classic can be explicitly selected', t => {
-    const { root, main } = fixture(t);
+test('external template paths stay absolute and Classic can be explicitly selected', function() {
+    const { root, main } = fixture();
     const external = path.join(path.dirname(root), 'external-template');
     Settings.writeWebExport(main, { template: external });
     assert.equal(Settings.read(main).webExport.template, external);
@@ -42,8 +46,8 @@ test('external template paths stay absolute and Classic can be explicitly select
     assert.equal(Settings.webExport(Settings.read(main), main).template, null);
 });
 
-test('malformed or non-object settings are never overwritten', t => {
-    const { main, file } = fixture(t);
+test('malformed or non-object settings are never overwritten', function() {
+    const { main, file } = fixture();
     for (const content of ['{not JSON', '[]', 'null', '42']) {
         fs.writeFileSync(file, content);
         assert.throws(() => Settings.writeWebExport(main, { template: null }));
@@ -51,8 +55,8 @@ test('malformed or non-object settings are never overwritten', t => {
     }
 });
 
-test('read-only and symlinked settings preserve the existing bytes', t => {
-    const { root, main, file } = fixture(t);
+test('read-only and symlinked settings preserve the existing bytes', function() {
+    const { root, main, file } = fixture();
     fs.writeFileSync(file, '{"extra":42}');
     fs.chmodSync(file, 0o444);
     try {
@@ -63,13 +67,13 @@ test('read-only and symlinked settings preserve the existing bytes', t => {
     const outside = path.join(root, 'outside.json');
     fs.writeFileSync(outside, '{"extra":42}');
     try { fs.symlinkSync(outside, file); }
-    catch (error) { if (error.code === 'EPERM') { t.skip('Symlinks require permission on this host.'); return; } throw error; }
+    catch (error) { if (error.code === 'EPERM') { this.skip('Symlinks require permission on this host.'); return; } throw error; }
     assert.throws(() => Settings.writeWebExport(main, { template: null }), /regular file/);
     assert.equal(fs.readFileSync(outside, 'utf8'), '{"extra":42}');
 });
 
-test('missing settings reset preferences and invalid web targets are rejected', t => {
-    const { main, file } = fixture(t);
+test('missing settings reset preferences and invalid web targets are rejected', function() {
+    const { main, file } = fixture();
     assert.deepEqual(Settings.read(main), {});
     assert.deepEqual(Settings.webExport({}, main), {});
     for (const webExport of [null, [], { template: 123 }, { directory: '' }, { script: '../story.js' }, { script: 'index.html' }]) {
