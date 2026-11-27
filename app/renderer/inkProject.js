@@ -269,10 +269,16 @@ InkProject.prototype.startFileWatching = function() {
                         setImmediate(() => EditorView.restoreCursorPos());
                 });
             } else if( this.browserPreview ) {
-                this.browserPreview.conflict = true;
-                this.browserPreview.revision++;
-                clearTimeout(this.browserPreview.timer);
-                ipcRenderer.send('browser-preview-error', this.browserPreview.root, i18n._('A source file changed on disk while it has unsaved edits in Inky. Save the project to resolve the conflict.'));
+                const preview = this.browserPreview;
+                fs.promises.readFile(updatedAbsFilePath, 'utf8').then(content => {
+                    // A watch event can be our own save or a metadata-only touch.
+                    if( this.browserPreview !== preview || !inkFile.hasUnsavedChanges ||
+                        content.replace(/^\uFEFF/, '') === inkFile.diskContent ) return;
+                    preview.conflict = true;
+                    preview.revision++;
+                    clearTimeout(preview.timer);
+                    ipcRenderer.send('browser-preview-error', preview.root, i18n._('A source file changed on disk while it has unsaved edits in Inky. Save the project to resolve the conflict.'));
+                }).catch(error => ipcRenderer.send('browser-preview-error', preview.root, error.message));
             }
         }
     });

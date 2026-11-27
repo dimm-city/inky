@@ -72,6 +72,7 @@ function InkFile(anyPath, mainInkFile, isBrandNew, inkMode, events) {
     // out into the compiler's temporary directory that needs to stay
     // in sync with the (potentially unsaved) editor version.
     this.compilerVersionDirty = true;
+    this.diskContent = null;
 
     this.symbols = new InkFileSymbols(this, {
         includesChanged: (includes) => {
@@ -189,6 +190,7 @@ InkFile.prototype.save = function(afterSaveCallback) {
             if( err ) 
                 afterSaveCallback(false);
             else {
+                this.diskContent = fileContent;
                 this.hasUnsavedChanges = this.getValue() !== fileContent;
                 afterSaveCallback(true);
             }
@@ -229,6 +231,7 @@ InkFile.prototype.tryLoadFromDisk = function(loadCallback) {
             // Strip any BOM
             // https://en.wikipedia.org/wiki/Byte_order_mark
             data = data.replace(/^\uFEFF/, '');
+            this.diskContent = data;
 
             if( !this.isLoading && data === this.getValue() ) { loadCallback(null); return; }
 
