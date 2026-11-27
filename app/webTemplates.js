@@ -43,7 +43,7 @@ function contains(parent, child) {
     return relative == '' || (relative != '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative));
 }
 
-async function copyDirectory(source, destination) {
+async function copyDirectory(source, destination, generatedFiles = []) {
     source = await fs.promises.realpath(source);
     const checkDestination = target => {
         if( contains(source, target) || contains(target, source) ) {
@@ -54,6 +54,19 @@ async function copyDirectory(source, destination) {
     await fs.promises.mkdir(destination, { recursive: true });
     checkDestination(await fs.promises.realpath(destination));
 
+    async function rejectDestinationSymlink(file) {
+        try {
+            if( (await fs.promises.lstat(file)).isSymbolicLink() ) {
+                throw new Error(`Export destination symlinks are not supported: ${file}`);
+            }
+        } catch(error) {
+            if( error.code != 'ENOENT' ) throw error;
+        }
+    }
+    for( const file of generatedFiles ) {
+        await rejectDestinationSymlink(path.join(destination, file));
+    }
+
     // Individual file copies also work inside Electron's ASAR archive.
     async function copy(relative = '') {
         for( const name of await fs.promises.readdir(path.join(source, relative)) ) {
@@ -62,6 +75,7 @@ async function copyDirectory(source, destination) {
             const to = path.join(destination, file);
             const stat = await fs.promises.lstat(from);
             if( stat.isSymbolicLink() ) throw new Error(`Template symlinks are not supported: ${file}`);
+            await rejectDestinationSymlink(to);
             if( stat.isDirectory() ) {
                 await fs.promises.mkdir(to, { recursive: true });
                 await copy(file);

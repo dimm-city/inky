@@ -9,7 +9,7 @@ Templates are standalone directories, separate from Inky's core application.
 ## Download and use
 
 Download the template ZIP from the catalog and extract it. The archive contains
-one `classic/` folder with `index.html` and its assets; no repository checkout or
+one `classic/` folder with `index.html`, its assets and the MIT notice; no repository checkout or
 package installation is needed.
 
 The release download becomes available after the first release containing

@@ -65,3 +65,51 @@ test('rejects template/output overlap and nested symlinks', async t => {
     }
     await assert.rejects(copyDirectory(source, path.join(root, 'output')), /symlinks are not supported/);
 });
+
+test('rejects destination directory and asset symlinks without overwriting outside files', async t => {
+    const root = await fixture(t);
+    for( const kind of ['directory', 'file'] ) {
+        const source = path.join(root, kind, 'source'), output = path.join(root, kind, 'output');
+        const outside = path.join(root, kind, 'outside');
+        await fs.mkdir(path.join(source, 'assets'), { recursive: true });
+        await fs.mkdir(output);
+        await fs.mkdir(outside);
+        await fs.writeFile(path.join(source, 'assets/style.css'), 'template stylesheet');
+        await fs.writeFile(path.join(outside, 'style.css'), 'DO NOT OVERWRITE');
+        try {
+            if( kind == 'directory' ) {
+                await fs.symlink(outside, path.join(output, 'assets'), 'junction');
+            } else {
+                await fs.mkdir(path.join(output, 'assets'));
+                await fs.symlink(path.join(outside, 'style.css'), path.join(output, 'assets/style.css'));
+            }
+        } catch(error) {
+            if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+            throw error;
+        }
+        await assert.rejects(copyDirectory(source, output), /Export destination symlinks/);
+        assert.equal(await fs.readFile(path.join(outside, 'style.css'), 'utf8'), 'DO NOT OVERWRITE');
+    }
+});
+
+test('rejects generated output symlinks before copying or changing linked files', async t => {
+    const root = await fixture(t), source = path.join(root, 'source');
+    await fs.mkdir(source);
+    await fs.writeFile(path.join(source, 'asset.css'), 'template stylesheet');
+    const outside = path.join(root, 'outside.txt');
+    await fs.writeFile(outside, 'DO NOT OVERWRITE');
+    for( const generated of ['story.js', 'ink.js', 'index.html'] ) {
+        const output = path.join(root, generated + '-output');
+        await fs.mkdir(output);
+        try {
+            await fs.symlink(outside, path.join(output, generated));
+        } catch(error) {
+            if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+            throw error;
+        }
+        await assert.rejects(copyDirectory(source, output, [generated]), /Export destination symlinks/);
+        assert.equal(await fs.readFile(outside, 'utf8'), 'DO NOT OVERWRITE');
+        assert.equal((await fs.lstat(path.join(output, generated))).isSymbolicLink(), true);
+        await assert.rejects(fs.stat(path.join(output, 'asset.css')), { code: 'ENOENT' });
+    }
+});

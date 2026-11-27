@@ -522,7 +522,7 @@ InkProject.prototype.buildForWeb = async function(jsonFilePath, targetDirectory,
         .replace(/##STORY TITLE##/g, () => storyTitle)
         .replace(/##JAVASCRIPT FILENAME##/g, () => jsFilename);
 
-    await WebTemplates.copyDirectory(templateDir, targetDirectory);
+    await WebTemplates.copyDirectory(templateDir, targetDirectory, [jsFilename, "ink.js", "index.html"]);
     await this.convertJSONToJS(jsonFilePath, path.join(targetDirectory, jsFilename));
     await fs.promises.copyFile(path.join(__dirname, "../node_modules/inkjs/dist/ink.js"), path.join(targetDirectory, "ink.js"));
     await fs.promises.writeFile(path.join(targetDirectory, "index.html"), html, "utf8");
