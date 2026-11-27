@@ -2,17 +2,21 @@
 
 Templates are standalone directories, separate from Inky's core application.
 
-| Template | Description |
-| --- | --- |
-| [Classic](classic/) | The original web player, used automatically when Default is selected. |
-| [Dimm City](dimm-city/README.md) | Illustrated dark reader with dialogue, choices, transcript, rewind and save/load. |
+| Template | Download | Description |
+| --- | --- | --- |
+| [Classic](classic/) | [Release ZIP](https://github.com/dimm-city/inky/releases/latest/download/inky-template-classic.zip) | The original web player, used automatically when Default is selected. |
 
 ## Download and use
 
-Download a template from its author or choose one from the catalog above.
-To use a template from this repository, download the repository ZIP from its
-Code menu, extract it, and use an individual folder under `templates/`, not the
-entire repository. The template folder must contain `index.html` and its assets.
+Download the template ZIP from the catalog and extract it. The archive contains
+one `classic/` folder with `index.html` and its assets; no repository checkout or
+package installation is needed.
+
+The release download becomes available after the first release containing
+`inky-template-classic.zip` is published. For an unreleased source snapshot, use
+the `templates/classic` folder directly, download the repository ZIP from its Code
+menu and extract that folder, or create the template ZIP locally as described below.
+Templates from other authors use the same directory format.
 
 1. **File → Web template → Open templates folder** opens Inky's global template
    library: the `templates` directory inside your per-user application data.
@@ -78,3 +82,14 @@ read it directly from the repository.
 
 With Node.js 20 or newer, run `node app/test/web-templates.test.cjs` from the
 repository root for the template filesystem checks.
+
+The Linux release job packages Classic from the checked-out commit and attaches
+`inky-template-classic.zip` using the existing release upload step. To create the
+same archive locally without building the app, run from the repository root:
+
+```sh
+mkdir -p ReleaseUpload
+git archive --format=zip --prefix=classic/ --output=ReleaseUpload/inky-template-classic.zip HEAD:templates/classic
+```
+
+This packages committed source files, so commit template edits before running it.
