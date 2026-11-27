@@ -62,6 +62,7 @@ ipcRenderer.on('choose-web-template', (_event, options) => {
     refresh(selected);
     dialog.showModal();
 });
+window.addEventListener('focus', () => { if( dialog.open && !busy ) refresh(list.value); });
 list.addEventListener('change', () => { error.textContent = ''; showSelection(); });
 dialog.addEventListener('cancel', event => { if( busy ) event.preventDefault(); });
 dialog.querySelector('[data-action=cancel]').addEventListener('click', () => dialog.close());

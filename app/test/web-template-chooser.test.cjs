@@ -41,6 +41,7 @@ function fixture() {
     const library = path.join(root, 'library');
     return {
         root, library, dialog, list, boundary, selections,
+        refocus: () => window.dispatchEvent(new window.Event('focus')),
         open: selected => listeners['choose-web-template'](null, { library, selected }),
         template(name) {
             const directory = path.join(root, name); fs.mkdirSync(directory);
@@ -83,6 +84,11 @@ test('import adds a complete library copy without applying it; failures keep the
     assert.deepEqual(ui.selections, []);
     await ui.click('cancel'); ui.open(null);
     assert.equal(ui.list.options.length, 2, 'The imported template remains available after Cancel');
+    fs.mkdirSync(path.join(ui.library, 'Added manually'));
+    fs.writeFileSync(path.join(ui.library, 'Added manually/index.html'), '<title>New</title>');
+    ui.refocus();
+    assert.equal(ui.list.options.length, 3, 'Returning from the library refreshes the list');
+    assert.equal(ui.list.value, '');
     ui.boundary.picker.filePaths = [ui.root];
     await ui.click('external');
     assert.match(ui.dialog.querySelector('[role=alert]').textContent, /index.html/);
