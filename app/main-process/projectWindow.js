@@ -133,14 +133,17 @@ ProjectWindow.prototype.persistWebExport = function() {
     if( !this.mainInkAbsPath || !Object.keys(this.webExport).length ) return;
     try {
         this.settings = ProjectSettings.writeWebExport(this.mainInkAbsPath, this.webExport);
+        this.unsavedWebExport = null;
     } catch(error) {
+        this.unsavedWebExport = { ...this.webExport };
         dialog.showErrorBox(i18n._('Project settings not saved'),
             i18n._('Web export settings are active for this session, but could not be saved.') + '\n' + error.message);
     }
 }
 
 ProjectWindow.prototype.selectWebTemplate = async function(directory) {
-    this.webExport.template = directory ? await validateDirectory(directory) : null;
+    if( directory ) await validateDirectory(directory);
+    this.webExport.template = directory ? path.resolve(directory) : null;
     this.persistWebExport();
 }
 
@@ -193,7 +196,7 @@ ProjectWindow.prototype.zoom = function(amount) {
 ProjectWindow.prototype.refreshProjectSettings = function(rootInkFilePath) {
     try {
         const settings = ProjectSettings.read(rootInkFilePath);
-        const webExport = ProjectSettings.webExport(settings, rootInkFilePath);
+        const webExport = { ...ProjectSettings.webExport(settings, rootInkFilePath), ...this.unsavedWebExport };
         this.settings = settings;
         this.webExport = webExport;
     } catch(error) {

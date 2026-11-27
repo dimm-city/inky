@@ -4,8 +4,11 @@ const path = require('path');
 // Templates are static web files. No template code is run by the exporter.
 async function validateDirectory(directory) {
     const resolved = await fs.promises.realpath(directory);
-    if( !(await fs.promises.stat(path.join(resolved, 'index.html'))).isFile() ) {
-        throw new Error('The template folder must contain index.html.');
+    try {
+        if( !(await fs.promises.stat(path.join(resolved, 'index.html'))).isFile() ) throw new Error('The template folder must contain index.html.');
+    } catch(error) {
+        if( error.code == 'ENOENT' ) throw new Error('Choose a template folder containing index.html. Extract downloaded ZIP files first.');
+        throw error;
     }
     for( const generated of ['story.js', 'ink.js'] ) {
         try {

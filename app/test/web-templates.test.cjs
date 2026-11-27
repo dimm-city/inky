@@ -1,18 +1,22 @@
-const { test } = require('node:test');
+const { it: test, afterEach } = require('mocha');
 const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const os = require('node:os');
 const { validateDirectory, listDirectories, copyDirectory } = require('../webTemplates.js');
 
-async function fixture(t) {
+const roots = [];
+afterEach(async () => {
+    for (const root of roots.splice(0)) await fs.rm(root, { recursive: true, force: true });
+});
+async function fixture() {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), 'inky-template-test-'));
-    t.after(() => fs.rm(root, { recursive: true, force: true }));
+    roots.push(root);
     return root;
 }
 
-test('discovers installed template folders and reports unreadable library paths', async t => {
-    const root = await fixture(t);
+test('discovers installed template folders and reports unreadable library paths', async function() {
+    const root = await fixture();
     assert.deepEqual(listDirectories(path.join(root, 'missing')), []);
     for( const name of ['Beta', 'Alpha', 'not-a-template'] ) await fs.mkdir(path.join(root, name));
     for( const name of ['Beta', 'Alpha'] ) await fs.writeFile(path.join(root, name, 'index.html'), '<html></html>');
@@ -21,9 +25,9 @@ test('discovers installed template folders and reports unreadable library paths'
     assert.throws(() => listDirectories(path.join(root, 'file')), { code: 'ENOTDIR' });
 });
 
-test('validates arbitrary template locations and reserves generated files', async t => {
-    const root = await fixture(t);
-    await assert.rejects(validateDirectory(root), { code: 'ENOENT' });
+test('validates arbitrary template locations and reserves generated files', async function() {
+    const root = await fixture();
+    await assert.rejects(validateDirectory(root), /template folder containing index.html/);
     await fs.writeFile(path.join(root, 'index.html'), '<html></html>');
     assert.equal(await validateDirectory(root), await fs.realpath(root));
     for( const file of ['story.js', 'ink.js'] ) {
@@ -33,8 +37,8 @@ test('validates arbitrary template locations and reserves generated files', asyn
     }
 });
 
-test('copies nested binary assets and player code without executing it or deleting author files', async t => {
-    const root = await fixture(t), source = path.join(root, 'source'), output = path.join(root, 'output');
+test('copies nested binary assets and player code without executing it or deleting author files', async function() {
+    const root = await fixture(), source = path.join(root, 'source'), output = path.join(root, 'output');
     await fs.mkdir(path.join(source, 'assets/fonts'), { recursive: true });
     await fs.mkdir(output);
     await fs.writeFile(path.join(source, 'index.html'), '##STORY TITLE##');
@@ -50,8 +54,8 @@ test('copies nested binary assets and player code without executing it or deleti
     await assert.rejects(fs.stat(path.join(output, 'index.html')), { code: 'ENOENT' });
 });
 
-test('rejects template/output overlap and nested symlinks', async t => {
-    const root = await fixture(t), source = path.join(root, 'source');
+test('rejects template/output overlap and nested symlinks', async function() {
+    const root = await fixture(), source = path.join(root, 'source');
     await fs.mkdir(source);
     await fs.writeFile(path.join(source, 'index.html'), '<html></html>');
     for( const output of [source, path.join(source, 'output'), root] ) {
@@ -60,14 +64,14 @@ test('rejects template/output overlap and nested symlinks', async t => {
     try {
         await fs.symlink(path.join(source, 'index.html'), path.join(source, 'linked.html'));
     } catch(error) {
-        if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+        if( error.code == 'EPERM' ) { this.skip('Creating symlinks requires permission on this host.'); return; }
         throw error;
     }
     await assert.rejects(copyDirectory(source, path.join(root, 'output')), /symlinks are not supported/);
 });
 
-test('rejects destination directory and asset symlinks without overwriting outside files', async t => {
-    const root = await fixture(t);
+test('rejects destination directory and asset symlinks without overwriting outside files', async function() {
+    const root = await fixture();
     for( const kind of ['directory', 'file'] ) {
         const source = path.join(root, kind, 'source'), output = path.join(root, kind, 'output');
         const outside = path.join(root, kind, 'outside');
@@ -84,7 +88,7 @@ test('rejects destination directory and asset symlinks without overwriting outsi
                 await fs.symlink(path.join(outside, 'style.css'), path.join(output, 'assets/style.css'));
             }
         } catch(error) {
-            if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+            if( error.code == 'EPERM' ) { this.skip('Creating symlinks requires permission on this host.'); return; }
             throw error;
         }
         await assert.rejects(copyDirectory(source, output), /Export destination symlinks/);
@@ -92,8 +96,8 @@ test('rejects destination directory and asset symlinks without overwriting outsi
     }
 });
 
-test('rejects generated output symlinks before copying or changing linked files', async t => {
-    const root = await fixture(t), source = path.join(root, 'source');
+test('rejects generated output symlinks before copying or changing linked files', async function() {
+    const root = await fixture(), source = path.join(root, 'source');
     await fs.mkdir(source);
     await fs.writeFile(path.join(source, 'asset.css'), 'template stylesheet');
     const outside = path.join(root, 'outside.txt');
@@ -104,7 +108,7 @@ test('rejects generated output symlinks before copying or changing linked files'
         try {
             await fs.symlink(outside, path.join(output, generated));
         } catch(error) {
-            if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+            if( error.code == 'EPERM' ) { this.skip('Creating symlinks requires permission on this host.'); return; }
             throw error;
         }
         await assert.rejects(copyDirectory(source, output, [generated]), /Export destination symlinks/);
@@ -114,8 +118,8 @@ test('rejects generated output symlinks before copying or changing linked files'
     }
 });
 
-test('rejects a symlink used as the export root before copying or creating its target', async t => {
-    const root = await fixture(t), source = path.join(root, 'source');
+test('rejects a symlink used as the export root before copying or creating its target', async function() {
+    const root = await fixture(), source = path.join(root, 'source');
     await fs.mkdir(source);
     await fs.writeFile(path.join(source, 'player.js'), 'template player');
     for( const exists of [true, false] ) {
@@ -128,7 +132,7 @@ test('rejects a symlink used as the export root before copying or creating its t
         try {
             await fs.symlink(outside, output, 'junction');
         } catch(error) {
-            if( error.code == 'EPERM' ) { t.skip('Creating symlinks requires permission on this host.'); return; }
+            if( error.code == 'EPERM' ) { this.skip('Creating symlinks requires permission on this host.'); return; }
             throw error;
         }
         await assert.rejects(copyDirectory(source, output), /Export destination symlinks/);
