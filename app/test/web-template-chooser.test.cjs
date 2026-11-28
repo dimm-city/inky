@@ -23,11 +23,11 @@ function fixture() {
     dialog.close = () => { dialog.open = false; };
     const listeners = {}, selections = [];
     const realRequire = createRequire(path.join(renderer, 'webTemplateChooser.js'));
-    const boundary = { picker: { canceled: true }, failure: null };
+    const boundary = { picker: { canceled: true }, failure: null, pickerOptions: [] };
     const ipcRenderer = {
         on: (name, callback) => { listeners[name] = callback; },
         async invoke(name, value) {
-            if( name === 'showOpenDialog' ) return boundary.picker;
+            if( name === 'showOpenDialog' ) { boundary.pickerOptions.push(value); return boundary.picker; }
             assert.equal(name, 'select-web-template');
             if( boundary.failure ) throw new Error(boundary.failure);
             selections.push(value);
@@ -40,9 +40,9 @@ function fixture() {
     });
     const library = path.join(root, 'library');
     return {
-        root, library, dialog, list, boundary, selections,
+        window, root, library, dialog, list, boundary, selections,
         refocus: () => window.dispatchEvent(new window.Event('focus')),
-        open: selected => listeners['choose-web-template'](null, { library, selected }),
+        open: selected => listeners['choose-web-template'](null, { library, selected, sourceDirectory: root }),
         template(name) {
             const directory = path.join(root, name); fs.mkdirSync(directory);
             fs.writeFileSync(path.join(directory, 'index.html'), '<title>Player</title>');
@@ -112,4 +112,68 @@ test('missing selections can be relocated even when the library is unreadable', 
     assert.equal(ui.dialog.querySelector('[type=submit]').disabled, false);
     await ui.apply();
     assert.deepEqual(ui.selections, [external]);
+});
+
+test('source pickers start at downloads or the selected external template, and relocate missing folders nearby', async function() {
+    const ui = fixture(), selected = ui.template('Current');
+    ui.open(null);
+    await ui.click('import');
+    assert.equal(ui.boundary.pickerOptions.at(-1).defaultPath, ui.root);
+    await ui.click('cancel');
+    ui.open(selected);
+    await ui.click('import');
+    assert.equal(ui.boundary.pickerOptions.at(-1).defaultPath, ui.root, 'Import must not browse the installed player assets');
+    await ui.click('external');
+    assert.equal(ui.boundary.pickerOptions.at(-1).defaultPath, selected);
+    fs.renameSync(selected, selected + ' moved');
+    ui.refocus();
+    await ui.click('external');
+    assert.equal(ui.boundary.pickerOptions.at(-1).defaultPath, path.dirname(selected));
+});
+
+test('repairing the library clears stale errors while preserving the pending choice', async function() {
+    const ui = fixture(), selected = ui.template('External');
+    fs.writeFileSync(ui.library, 'not a directory');
+    ui.open(selected);
+    assert.match(ui.dialog.querySelector('[role=alert]').textContent, /ENOTDIR/);
+    fs.unlinkSync(ui.library); fs.mkdirSync(ui.library);
+    ui.refocus();
+    assert.equal(ui.dialog.querySelector('[role=alert]').textContent, '');
+    assert.equal(ui.list.value, selected);
+    assert.deepEqual(ui.selections, []);
+});
+
+test('chooser keeps native keys isolated from Go to anything and ignores its shortcut until closed', async function() {
+    const ui = fixture(), window = ui.window;
+    const renderer = path.join(__dirname, '../renderer');
+    const requireFromRenderer = createRequire(path.join(renderer, 'goto.js'));
+    window.eval(fs.readFileSync(path.join(renderer, 'jquery-2.2.3.min.js'), 'utf8'));
+    const handlers = {};
+    window.Function('require', 'exports', fs.readFileSync(path.join(renderer, 'goto.js'), 'utf8'))(name => {
+        if( name === 'electron' ) return { ipcRenderer: { on: (name, callback) => { handlers[name] = callback; } } };
+        if( name === './jquery-2.2.3.min.js' ) return window.$;
+        if( name === './inkProject.js' ) return { InkProject: { currentProject: { files: [], activeInkFile: { getValue: () => '' } } } };
+        if( name === './editorView.js' ) return { EditorView: { saveCursorPos() {}, focus() {}, restoreCursorPos() {} } };
+        if( name === './i18n.js' ) return { _: text => text };
+        return requireFromRenderer(name);
+    }, {});
+    await new Promise(resolve => window.$(resolve));
+    const goto = window.document.querySelector('#goto-anything');
+    handlers['goto-anything']();
+    assert.equal(goto.classList.contains('hidden'), false);
+    ui.open(null);
+    for( const keyCode of [40, 38, 13, 27] ) {
+        const key = new window.KeyboardEvent('keydown', { keyCode, bubbles: true, cancelable: true });
+        ui.list.dispatchEvent(key);
+        assert.equal(key.defaultPrevented, false, 'The native select/dialog must retain its default key handling');
+        assert.equal(goto.classList.contains('hidden'), false, 'Chooser keys must not navigate or dismiss the background panel');
+    }
+    await ui.click('cancel');
+    handlers['goto-anything'](); // Close the original panel normally.
+    ui.open(null);
+    handlers['goto-anything'](); // Native menu accelerators must not open it behind a modal.
+    assert.equal(goto.classList.contains('hidden'), true);
+    await ui.click('cancel');
+    handlers['goto-anything']();
+    assert.equal(goto.classList.contains('hidden'), false, 'The shortcut still works after closing the chooser');
 });

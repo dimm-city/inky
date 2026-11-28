@@ -460,6 +460,7 @@ $(document).ready(() => {
 });
 
 ipc.on("goto-anything", (event) => {
+    if( document.querySelector('dialog[open]') ) return;
     toggle();
 });
 

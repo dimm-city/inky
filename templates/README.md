@@ -15,7 +15,8 @@ templates as ZIP files. Extract the ZIP and locate the folder containing
 1. Open **File → Web templates…**. Choose Classic, an imported template, or
    **Use external folder…** to reference a template in any accessible location.
    The chooser shows the selected folder's full location.
-2. **Import folder…** copies an extracted template into your per-user library.
+2. **Import folder…** starts in Downloads (or your home folder when unavailable)
+   and copies an extracted template into your per-user library.
    Existing names are kept: another copy receives a numbered suffix. Imports
    remain in the library even if you cancel the chooser. **Open library folder**
    lets you edit or remove those copies; returning to Inky refreshes the list.
