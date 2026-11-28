@@ -7,6 +7,7 @@ const {AppMenus} = require('./appmenus.js');
 const {onForceQuit} = require('./forceQuitDetect');
 const {Inklecate} = require("./inklecate.js");
 const { fstat } = require('original-fs');
+const fs = require('fs');
 
 
 function inkJSNeedsUpdating() {
@@ -159,9 +160,12 @@ app.on('ready', function () {
         },
         chooseWebTemplate: () => {
             const win = ProjectWindow.focused();
-            if( win ) win.browserWindow.webContents.send('choose-web-template', {
+            if( !win ) return;
+            const downloads = app.getPath('downloads');
+            win.browserWindow.webContents.send('choose-web-template', {
                 library: ProjectWindow.templatesDirectory(),
-                selected: win.webExport.template || null
+                selected: win.webExport.template || null,
+                sourceDirectory: fs.existsSync(downloads) ? downloads : app.getPath('home')
             });
         },
         exportForWeb: () => {

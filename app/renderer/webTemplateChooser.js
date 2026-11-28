@@ -10,7 +10,7 @@ const error = dialog.querySelector('[role=alert]');
 const location = dialog.querySelector('#web-template-location');
 const fields = dialog.querySelector('fieldset');
 const use = dialog.querySelector('[type=submit]');
-let library, selected, busy = false;
+let library, selected, sourceDirectory, busy = false;
 
 function showSelection() {
     const directory = list.value;
@@ -27,6 +27,7 @@ function showSelection() {
 }
 
 function refresh(directory) {
+    error.textContent = '';
     let directories = [];
     try { directories = listDirectories(library); }
     catch(problem) { error.textContent = problem.message; }
@@ -58,12 +59,14 @@ ipcRenderer.on('choose-web-template', (_event, options) => {
     if( dialog.open ) { list.focus(); return; }
     library = options.library;
     selected = options.selected;
-    error.textContent = '';
+    sourceDirectory = options.sourceDirectory;
     refresh(selected);
     dialog.showModal();
 });
 window.addEventListener('focus', () => { if( dialog.open && !busy ) refresh(list.value); });
 list.addEventListener('change', () => { error.textContent = ''; showSelection(); });
+// Keep background editor shortcuts from consuming the dialog's native keys.
+dialog.addEventListener('keydown', event => event.stopPropagation());
 dialog.addEventListener('cancel', event => { if( busy ) event.preventDefault(); });
 dialog.querySelector('[data-action=cancel]').addEventListener('click', () => dialog.close());
 dialog.querySelector('form').addEventListener('submit', event => {
@@ -75,9 +78,14 @@ dialog.querySelector('form').addEventListener('submit', event => {
 });
 for( const action of ['import', 'external'] ) {
     dialog.querySelector(`[data-action=${action}]`).addEventListener('click', () => perform(async () => {
+        let defaultPath = sourceDirectory;
+        if( action === 'external' && list.value ) {
+            const current = fs.existsSync(list.value) ? list.value : path.dirname(list.value);
+            if( fs.existsSync(current) ) defaultPath = current;
+        }
         const result = await ipcRenderer.invoke('showOpenDialog', {
-            title: i18n._(action === 'import' ? 'Import template folder' : 'Use external template folder'),
-            defaultPath: list.value || library,
+            title: action === 'import' ? i18n._('Import template folder') : i18n._('Use external template folder'),
+            defaultPath,
             properties: ['openDirectory']
         });
         if( result.canceled ) return;
