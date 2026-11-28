@@ -17,6 +17,12 @@
 - **Export to JSON**: Although this isn't necessary if you're using the [ink-Unity-integration plugin](https://assetstore.unity.com/packages/tools/integration/ink-unity-integration-60055), Inky allows you to export to ink's compiled JSON format, which is especially useful in other ink runtime implementations, such as [inkjs](https://github.com/y-lohse/inkjs), for running **ink** on the web.
 - **File watching**: Modern text editors, including Inky, watch for changes to files on disk, so that if you change them it reflects those changes. This is especially helpful if you keep your **ink** in source control.
 
+## Web templates
+
+Customize web exports with downloadable HTML/CSS templates. See the
+[template catalog and guide](./templates/README.md) for available templates,
+installation, usage and authoring instructions.
+
 ## Project status
 
 Inky has been used extensively on multiple projects by different developers. Nevertheless, it isn't as robust or feature complete as many other text editors you may have used, since it's specialist software made by game developers in their spare time.
@@ -36,6 +42,9 @@ To keep up to date with the latest news about ink [sign up for the mailing list]
 **Warning: For the technically inclined - you need to understand what a JSON file is to do the following!**
 
 To customise Inky settings for your specific ink project, create a JSON file with the same name as your main ink file, except with a `.settings.json` extension. For example, if your main ink file is called `my_great_story.ink`, then name your JSON file `my_great_story.settings.json`.
+
+Web export preferences are saved automatically in this same file; see the
+[web template guide](templates/README.md#project-preferences).
 
 Here is an example settings file:
 

@@ -7,7 +7,7 @@ const {AppMenus} = require('./appmenus.js');
 const {onForceQuit} = require('./forceQuitDetect');
 const {Inklecate} = require("./inklecate.js");
 const { fstat } = require('original-fs');
-const {fs} = require("fs");
+const fs = require('fs');
 
 
 function inkJSNeedsUpdating() {
@@ -20,6 +20,13 @@ function inkJSNeedsUpdating() {
     // });
     // return true;
 }
+
+ipcMain.handle('select-web-template', async (event, directory) => {
+    const win = ProjectWindow.withWebContents(event.sender);
+    if( !win ) return;
+    await win.selectWebTemplate(directory);
+    AppMenus.refresh();
+});
 
 // main
 let pendingPathToOpen = null;
@@ -48,9 +55,13 @@ ipcMain.on('show-context-menu', (event) => {
 
 
 ipcMain.handle("showSaveDialog", async (event,saveOptions) => {
-    return dialog.showSaveDialog(saveOptions) 
+    return dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), saveOptions)
 
 })
+
+ipcMain.handle('showOpenDialog', (event, options) => {
+    return dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), options);
+});
 
 ipcMain.handle("try-close", async (event) =>{
     return dialog.showMessageBox({
@@ -147,10 +158,24 @@ app.on('ready', function () {
             var win = ProjectWindow.focused();
             if (win) win.exportJson();
         },
+        chooseWebTemplate: () => {
+            const win = ProjectWindow.focused();
+            if( !win ) return;
+            const downloads = app.getPath('downloads');
+            win.browserWindow.webContents.send('choose-web-template', {
+                library: ProjectWindow.templatesDirectory(),
+                selected: win.webExport.template || null,
+                sourceDirectory: fs.existsSync(downloads) ? downloads : app.getPath('home')
+            });
+        },
         exportForWeb: () => {
             if( inkJSNeedsUpdating() ) return;
             var win = ProjectWindow.focused();
             if (win) win.exportForWeb();
+        },
+        openExportedGame: () => {
+            const win = ProjectWindow.focused();
+            if( win ) win.openExportedGame();
         },
         exportJSOnly: () => {
             if( inkJSNeedsUpdating() ) return;

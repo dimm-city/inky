@@ -21,7 +21,7 @@ let callbacks = {
 };
 
 function refresh() {
-    
+    const projectWindow = ProjectWindow.focused();
     let themes = [];
 
     // Create the themes menu, with the correct current theme ticked
@@ -208,10 +208,10 @@ function refresh() {
                     type: 'separator'
                 },
                 {
-                    label: i18n._('Export to JSON...'),
-                    accelerator: 'CmdOrCtrl+Shift+S',
+                    label: i18n._('Web templates...'),
+                    id: 'web-template',
                     enabled: callbacks.isFocusedWindow,
-                    click: callbacks.exportJson
+                    click: callbacks.chooseWebTemplate
                 },
                 {
                     label: i18n._('Export for web...'),
@@ -219,7 +219,19 @@ function refresh() {
                     click: callbacks.exportForWeb
                 },
                 {
-                    label: i18n._('Export story.js only...'),
+                    label: i18n._('Open exported game'),
+                    enabled: !!(projectWindow && projectWindow.webExport.directory),
+                    click: callbacks.openExportedGame
+                },
+                { type: 'separator' },
+                {
+                    label: i18n._('Export to JSON...'),
+                    accelerator: 'CmdOrCtrl+Shift+S',
+                    enabled: callbacks.isFocusedWindow,
+                    click: callbacks.exportJson
+                },
+                {
+                    label: i18n._('Export story content only...'),
                     accelerator: 'CmdOrCtrl+Alt+S',
                     enabled: callbacks.isFocusedWindow,
                     click: callbacks.exportJSOnly

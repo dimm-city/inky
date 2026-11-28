@@ -15,6 +15,7 @@ require("./split.js");
 
 // Set up context menu
 require("./contextmenu.js");
+require("./webTemplateChooser.js");
 
 const EditorView = require("./editorView.js").EditorView;
 const PlayerView = require("./playerView.js").PlayerView;
