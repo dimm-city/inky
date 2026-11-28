@@ -7,9 +7,8 @@ var namespace = null;
 var sessionIdx = 0;
 
 var currentPlaySessionId = null;
-var currentExportSessionId = null;
+const exportCallbacks = new Map();
 var currentStatsSessionId = null;
-var exportCompleteCallback = null;
 
 var lastEditorChange = null;
 var reloadPending = false;
@@ -70,7 +69,7 @@ function buildCompileInstruction() {
 }
 
 function sessionIsCurrent(id) {
-    return id == currentPlaySessionId || id == currentExportSessionId;
+    return id == currentPlaySessionId || exportCallbacks.has(id);
 }
 
 function updateCompilerIsBusy(isBusy) {
@@ -112,17 +111,18 @@ function reloadInklecateSession() {
     updateCompilerIsBusy(true);
 }
 
-function exportJson(inkJsCompatible, callback) {
-    exportCompleteCallback = callback;
-
-    var instr = buildCompileInstruction();
+function exportJson(inkJsCompatible, callback, snapshot = null) {
+    // Preview snapshots have their own source mirror; live typing cannot change them.
+    const id = snapshot && `${namespace}_export_${++sessionIdx}`;
+    var instr = snapshot ? { ...snapshot, namespace: id, sessionId: id } : buildCompileInstruction();
     instr.export = true;
     instr.inkJsCompatible = inkJsCompatible;
-    currentExportSessionId = instr.sessionId;
+    exportCallbacks.set(instr.sessionId, callback);
 
     ipc.send("compile", instr);
 
     updateCompilerIsBusy(true);
+    return instr.sessionId;
 }
 
 function getStats(callback) {
@@ -138,9 +138,10 @@ function getStats(callback) {
     updateCompilerIsBusy(true);
 }
 
-function completeExport(error, path) {
-    var callback = exportCompleteCallback;
-    exportCompleteCallback = null;
+function completeExport(sessionId, error, path) {
+    const callback = exportCallbacks.get(sessionId);
+    if( !callback ) return;
+    exportCallbacks.delete(sessionId);
     if( error )
         callback(error.message);
     else
@@ -316,8 +317,8 @@ ipc.on("inklecate-complete", (event, fromSessionId, exportJsonPath) => {
             events.replayComplete(currentPlaySessionId);
         }
     }
-    else if( fromSessionId == currentExportSessionId ) {
-        completeExport(null, exportJsonPath);
+    else if( exportCallbacks.has(fromSessionId) ) {
+        completeExport(fromSessionId, null, exportJsonPath);
     }
 });
 
@@ -325,8 +326,8 @@ ipc.on("play-exit-due-to-error", (event, exitCode, fromSessionId) => {
 
     if( !sessionIsCurrent(fromSessionId) ) return;
 
-    if( fromSessionId == currentExportSessionId ) {
-        completeExport({message: i18n._("Ink has errors - please fix them before exporting.")});
+    if( exportCallbacks.has(fromSessionId) ) {
+        completeExport(fromSessionId, {message: i18n._("Ink has errors - please fix them before exporting.")});
     } else {
         if( replaying ) {
             replaying = false;
@@ -343,8 +344,8 @@ ipc.on("play-story-unexpected-error", (event, error, fromSessionId) => {
 
     if( !sessionIsCurrent(fromSessionId) ) return;
 
-    if( fromSessionId == currentExportSessionId ) {
-        completeExport({message: i18n._("Unexpected error")});
+    if( exportCallbacks.has(fromSessionId) ) {
+        completeExport(fromSessionId, {message: i18n._("Unexpected error")});
     } else {
         if( replaying ) {
             replaying = false;

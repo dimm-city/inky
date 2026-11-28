@@ -34,7 +34,7 @@ templates as ZIP files. Extract the ZIP and locate the folder containing
    and offers **Open exported game**. The command is also available in File. Repeat
    exports to the same folder finish without another completion dialog.
 5. Edit your story, **Export for web…** again to the preselected folder, then refresh
-   its browser tab. Use the same full export after changing templates or artwork.
+   its browser tab, or enable [live browser preview](#live-browser-preview) for automatic updates. Use the same full export after changing templates or artwork.
 
 **Classic (built-in)** uses the original player without selecting a folder.
 The native play-as-you-write pane keeps its existing presentation; the selected
@@ -45,6 +45,67 @@ template does not run installation scripts. Full exports overwrite template
 files but preserve unrelated destination files; they do not prune obsolete assets.
 Edit the template source and re-export rather than editing generated layout files.
 Browser saves depend on the player, compiled content and file location.
+
+## Live browser preview
+
+Enable **File → Live browser preview** to open the selected template in your
+browser. Inky saves any unsaved project first (an untitled story asks for its
+filename), compiles it and opens one tab after the first successful export.
+
+Saving the main story or an include automatically rebuilds and updates that tab.
+Successful source changes from another editor are also detected, including
+referenced includes outside the main directory. Unsaved typing alone is not
+published. If a disk change conflicts with unsaved Inky edits, resolve it and
+save the project to resume preview updates.
+
+Preview uses a private temporary export served only on this computer. It does
+not change your publishing folder or export preferences. Disabling the option
+or closing the project stops the server and removes its temporary files. The
+option starts disabled for each project session. It does not enable LAN/phone
+access or watch template HTML, CSS, JavaScript or artwork. Changing the selected
+template rebuilds and reloads the same preview tab.
+
+Classic preserves compatible play progress and regenerates the current turn,
+including updated prose and choice labels. Earlier displayed turns remain as
+previously read. Structural edits can invalidate a checkpoint: the browser keeps
+the running game and offers **Restart preview** to apply the new version from
+the beginning. Progress retention is best effort, not a save-migration guarantee.
+A compile error also keeps the last successful game; fix the source and save
+again. Preview does not overwrite the player's browser saves.
+
+Healthy status notices disappear after a few seconds. **Hide** dismisses a notice
+without changing the game; **Restart preview** is shown only when an update
+cannot preserve progress, and starts the updated story from the beginning.
+
+Other templates reload normally unless their player implements the optional
+update hook below; their own startup behavior determines progress after reload.
+A template's Content Security Policy must allow its same-origin preview script
+and EventSource connection. Inky does not relax template security policies.
+
+### Supporting live story updates in a template
+
+The local server injects a preview client before player startup. Normal exports
+do not contain that client. A player can opt in without depending on preview:
+
+```js
+if (window.inkyPreview) {
+    window.inkyPreview.accept(async compiledStory => {
+        // Prepare a new inkjs.Story(compiledStory), restore a compatible
+        // checkpoint, regenerate the current view, then commit the update.
+        // Throw to retain the running game and offer Restart preview.
+    });
+}
+```
+
+The callback receives compiled Ink JSON and may return a promise. It owns its
+runtime, external bindings, seed, buffered text, reading position, history and
+media. Validate a candidate before replacing the working story; reject errors,
+approximated paths or other incompatible state. Saving a pre-turn checkpoint
+lets the player regenerate changed text and choices: loading only the state
+after a menu was generated retains its old labels. Do not overwrite ordinary
+release saves with temporary preview checkpoints. See [Classic's player](classic/main.js)
+for a working implementation. Templates without the hook need no changes for
+automatic reloads.
 
 ### Project preferences
 
@@ -114,9 +175,9 @@ IDs, theme names, a metadata manifest or executable build hooks.
 All source files and subdirectories are copied, including notices: keep private
 files and output directories outside the template. Nested source symlinks and
 destination symlinks, including the export folder itself, are rejected.
-Use local browser-compatible script/resource references for offline play; no
-server is started by Inky. Export to a separate folder and keep edits in the
-template sources. JSON export and the native testing pane are unchanged.
+Use local browser-compatible script/resource references for offline play.
+Ordinary exports are static files; live preview serves a separate temporary copy.
+Export to a separate folder and keep edits in the template sources. JSON export and the native testing pane are unchanged.
 
 ## Development
 
@@ -124,7 +185,7 @@ template sources. JSON export and the native testing pane are unchanged.
 copy this `templates` directory into their resources folder; development builds
 read it directly from the repository.
 
-Run the filesystem, project-settings and workflow tests with the existing Mocha
+Run the filesystem, project-settings, preview and player tests with the existing Mocha
 runner (Node.js 20 or newer):
 
 ```sh
@@ -140,3 +201,4 @@ OS browser launching still need app smoke tests on each platform.
 `app/test/test.js` is the old Spectron application suite. Spectron is no longer
 an installed dependency; that file is retained for a separate migration and is
 not included in the unit-test command.
+

@@ -173,6 +173,13 @@ app.on('ready', function () {
             var win = ProjectWindow.focused();
             if (win) win.exportForWeb();
         },
+        toggleBrowserPreview: async () => {
+            const win = ProjectWindow.focused();
+            if( !win ) return;
+            try { await win.toggleBrowserPreview(); }
+            catch(error) { dialog.showErrorBox(i18n._('Browser preview failed'), error.message); }
+            AppMenus.refresh();
+        },
         openExportedGame: () => {
             const win = ProjectWindow.focused();
             if( win ) win.openExportedGame();

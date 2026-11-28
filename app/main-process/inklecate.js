@@ -31,6 +31,7 @@ if (process.platform == "darwin" || process.platform == "linux") {
 }
 
 var sessions = {};
+const isolatedExports = new Map();
 
 
 function compile(compileInstruction, requester) {
@@ -40,6 +41,8 @@ function compile(compileInstruction, requester) {
     console.log(`Launching inklecate for session id '${sessionId}'`);
 
     var uniqueDirPath = path.join(tempInkPath, compileInstruction.namespace);
+
+    if( compileInstruction.isolated ) isolatedExports.set(sessionId, { directory: uniqueDirPath, requester });
 
     // TODO: handle errors
     mkdirp.sync(uniqueDirPath);
@@ -291,6 +294,10 @@ function compile(compileInstruction, requester) {
         console.log(` - Ended inklecate session id ${sessionId}`);
     };
 
+    playProcess.on('error', error => {
+        if( !requester.isDestroyed() ) requester.send('play-story-unexpected-error', error.message, sessionId);
+        onEndOfStory(1);
+    });
     playProcess.on('close', processCloseExit);
     playProcess.on('exit', processCloseExit);
 }
@@ -306,7 +313,23 @@ function stop(sessionId) {
     }
 }
 
+function releaseExport(sessionId, requester) {
+    const exported = isolatedExports.get(sessionId);
+    if( !exported || exported.requester !== requester ) return;
+    isolatedExports.delete(sessionId);
+    const cleanup = () => fs.promises.rm(exported.directory, { recursive: true, force: true })
+        .catch(error => console.error('Could not clean up preview compilation:', error));
+    const session = sessions[sessionId];
+    if( session ) { session.process.once('close', cleanup); stop(sessionId); }
+    else cleanup();
+}
+
+ipc.on('release-export', (event, sessionId) => releaseExport(sessionId, event.sender));
+
 function killSessions(optionalBrowserWindow) {
+    for( const [id, exported] of isolatedExports ) {
+        if( !optionalBrowserWindow || exported.requester === optionalBrowserWindow.webContents ) releaseExport(id, exported.requester);
+    }
     for(var sessionId in sessions) {
 
         if( !optionalBrowserWindow || sessions[sessionId] &&
@@ -317,7 +340,8 @@ function killSessions(optionalBrowserWindow) {
 }
 
 ipc.on("compile", (event, compileInstruction) => {
-    compile(compileInstruction, event.sender);
+    try { compile(compileInstruction, event.sender); }
+    catch(error) { event.sender.send('play-story-unexpected-error', error.message, compileInstruction.sessionId); }
 });
 
 ipc.on("play-stop-ink", (event, sessionId) => {

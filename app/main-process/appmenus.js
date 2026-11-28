@@ -214,6 +214,14 @@ function refresh() {
                     click: callbacks.chooseWebTemplate
                 },
                 {
+                    label: i18n._('Live browser preview'),
+                    id: 'live-browser-preview',
+                    type: 'checkbox',
+                    checked: !!(projectWindow && projectWindow.browserPreview),
+                    enabled: callbacks.isFocusedWindow && !(projectWindow && projectWindow.stoppingPreview),
+                    click: callbacks.toggleBrowserPreview
+                },
+                {
                     label: i18n._('Export for web...'),
                     enabled: callbacks.isFocusedWindow,
                     click: callbacks.exportForWeb
